@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>炎黄中文学校羽毛球赛 - 实时云计分</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入谷歌高雅字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kaisei+Tokumin:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0F172A; /* 深色星空底色，极佳的现场对比度 */
+        }
+        .serif-font {
+            font-family: 'Kaisei Tokumin', serif;
+        }
+        /* 橄榄绿发球权呼吸动效 */
+        .serve-glow {
+            box-shadow: 0 0 16px 4px rgba(128, 128, 0, 0.6);
+            animation: pulse-olive 2s infinite;
+        }
+        @keyframes pulse-olive {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.04); opacity: 0.8; }
+        }
+        /* 泥板红无效操作震颤反馈 */
+        .shake-active {
+            animation: shake 0.4s ease-in-out;
+            border-color: #C2410C !important;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+        /* 背景 SVG 羽毛球线条 */
+        .bg-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.04;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        olive: {
+                            light: '#808000',
+                            DEFAULT: '#6B8E23',
+                            dark: '#556B2F'
+                        },
+                        terracotta: {
+                            DEFAULT: '#C2410C',
+                            dark: '#9A3412'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="text-slate-100 min-h-screen relative overflow-x-hidden flex flex-col justify-between">
+
+    <!-- 背景装饰线 -->
+    <svg class="bg-lines" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <path d="M0,20 Q30,50 50,20 T100,50" fill="none" stroke="white" stroke-width="0.5" />
+        <path d="M0,80 Q40,40 60,90 T100,70" fill="none" stroke="white" stroke-width="0.3" />
+        <circle cx="30" cy="40" r="15" fill="none" stroke="white" stroke-width="0.2" stroke-dasharray="2 2" />
+        <circle cx="75" cy="65" r="22" fill="none" stroke="white" stroke-width="0.1" />
+    </svg>
+
+    <!-- 顶部导航 -->
+    <header class="relative z-10 w-full px-6 py-5 flex justify-between items-center border-b border-slate-800 bg-slate-900/60 backdrop-blur-md">
+        <div class="flex items-center space-x-3">
+            <span class="text-sm tracking-widest text-amber-500 uppercase font-semibold">Yanhuang</span>
+            <span class="text-xs text-slate-400">|</span>
+            <h1 class="serif-font text-lg font-bold tracking-wide">炎黄中文学校羽毛球赛</h1>
+        </div>
+        <div class="flex items-center space-x-3">
+            <span id="sync-indicator" class="flex h-2.5 w-2.5 relative">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span id="sync-text" class="text-xs text-slate-400">正在连接云端...</span>
+        </div>
+    </header>
+
+    <!-- 主体内容 -->
+    <main class="relative z-10 flex-grow w-full max-w-6xl mx-auto px-4 py-6 flex flex-col justify-center">
+        
+        <!-- 筛选标签 (支持移动端优雅横滚) -->
+        <div class="flex space-x-2 overflow-x-auto pb-4 mb-4 no-scrollbar scroll-smooth" id="group-filters">
+            <button onclick="filterGroup('all')" class="group-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-amber-500 text-slate-950 transition-all">全部场次</button>
+            <button onclick="filterGroup('男子单打')" class="group-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">男子单打</button>
+            <button onclick="filterGroup('女子单打')" class="group-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">女子单打</button>
+            <button onclick="filterGroup('混合双打')" class="group-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">混合双打</button>
+        </div>
+
+        <!-- 移动端滑块容器 (桌面端自动呈现优雅网格) -->
+        <div id="matches-container" class="snap-container flex md:grid md:grid-cols-2 gap-6 overflow-x-auto md:overflow-x-visible pb-6 scroll-smooth">
+            <div class="w-full text-center py-12 text-slate-500 serif-font">正在连接云端数据库...</div>
+        </div>
+
+        <!-- 移动端轮播圆点指示器 -->
+        <div id="carousel-dots" class="flex md:hidden justify-center space-x-1.5 pb-4">
+            <!-- 动态生成小圆点 -->
+        </div>
+
+        <!-- 添加新赛程快捷入口 (需裁判验证) -->
+        <div class="mt-4 flex justify-center">
+            <button onclick="showAddMatchModal()" class="px-5 py-2.5 rounded-lg border border-dashed border-slate-700 text-slate-400 hover:text-amber-500 hover:border-amber-500 text-xs transition-all flex items-center space-x-2">
+                <span>＋ 新增比赛场次</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- 底部版权 -->
+    <footer class="relative z-10 text-center py-6 text-[10px] text-slate-600 border-t border-slate-900/60 bg-slate-950/40">
+        © 2026 Yanhuang Chinese School Badminton Club. All Rights Reserved.
+    </footer>
+
+    <!-- ================= 弹窗模块 ================= -->
+
+    <!-- 1. 裁判密码验证弹窗 (PIN: 2607) -->
+    <div id="pin-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-xs text-center shadow-2xl">
+            <h3 class="serif-font text-amber-500 text-lg font-semibold mb-2">裁判身份确认</h3>
+            <p class="text-xs text-slate-400 mb-4">请输入裁判专属校验码以执行此操作</p>
+            <input type="password" id="pin-input" placeholder="输入 4 位密码" maxlength="4" class="w-full text-center tracking-widest text-lg font-bold bg-slate-950 border border-slate-800 py-2.5 rounded-lg text-amber-500 focus:outline-none focus:border-amber-500 mb-4">
+            <div class="flex space-x-2">
+                <button onclick="closePinModal()" class="w-1/2 py-2 text-xs rounded-lg bg-slate-800 text-slate-400">取消</button>
+                <button onclick="verifyPIN()" class="w-1/2 py-2 text-xs rounded-lg bg-amber-500 text-slate-950 font-bold">验证</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 全屏大屏专注执裁模式 -->
+    <div id="focus-scoreboard" class="fixed inset-0 z-50 bg-slate-950 hidden flex flex-col justify-between p-6">
+        <div class="flex justify-between items-center border-b border-slate-900 pb-4">
+            <span id="focus-group" class="text-xs tracking-wider text-amber-500 font-bold">男子单打</span>
+            <button onclick="closeFocusMode()" class="px-4 py-1.5 text-xs bg-slate-900 text-slate-400 rounded-lg border border-slate-800">退出大屏</button>
+        </div>
+        
+        <!-- 核心双栏（移动端自动变为上下均分，单手完美盲操） -->
+        <div class="flex-grow flex flex-col md:flex-row items-center justify-around my-6 gap-6 md:gap-12">
+            <!-- A 队 -->
+            <div class="w-full md:w-1/2 flex flex-col items-center justify-center h-full rounded-2xl bg-slate-900/50 border border-slate-800/80 p-6 relative" id="focus-card-a">
+                <span id="focus-serve-a" class="absolute top-4 left-4 text-xs font-bold text-olive px-2 py-1 rounded bg-olive/10 hidden">SERVING发球</span>
+                <h2 id="focus-name-a" class="serif-font text-xl md:text-2xl font-bold mb-4">选手 A</h2>
+                <div class="text-[7.5rem] md:text-[10rem] font-bold leading-none select-none my-4 text-slate-100" id="focus-score-a">0</div>
+                <div class="flex space-x-4 w-full max-w-xs">
+                    <button onclick="adjustFocusScore('a', -1)" class="w-1/3 py-3 rounded-xl bg-slate-800 text-lg hover:bg-slate-700">-1</button>
+                    <button onclick="adjustFocusScore('a', 1)" class="w-2/3 py-3 rounded-xl bg-amber-500 text-slate-950 text-lg font-bold hover:bg-amber-400">+1 分</button>
+                </div>
+            </div>
+
+            <!-- B 队 -->
+            <div class="w-full md:w-1/2 flex flex-col items-center justify-center h-full rounded-2xl bg-slate-900/50 border border-slate-800/80 p-6 relative" id="focus-card-b">
+                <span id="focus-serve-b" class="absolute top-4 left-4 text-xs font-bold text-olive px-2 py-1 rounded bg-olive/10 hidden">SERVING发球</span>
+                <h2 id="focus-name-b" class="serif-font text-xl md:text-2xl font-bold mb-4">选手 B</h2>
+                <div class="text-[7.5rem] md:text-[10rem] font-bold leading-none select-none my-4 text-slate-100" id="focus-score-b">0</div>
+                <div class="flex space-x-4 w-full max-w-xs">
+                    <button onclick="adjustFocusScore('b', -1)" class="w-1/3 py-3 rounded-xl bg-slate-800 text-lg hover:bg-slate-700">-1</button>
+                    <button onclick="adjustFocusScore('b', 1)" class="w-2/3 py-3 rounded-xl bg-amber-500 text-slate-950 text-lg font-bold hover:bg-amber-400">+1 分</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-center space-x-4">
+            <button onclick="switchFocusServe()" class="px-6 py-2.5 text-xs bg-slate-900 border border-slate-800 rounded-lg text-slate-300">切换发球权</button>
+            <button onclick="saveAndExitFocus()" class="px-6 py-2.5 text-xs bg-emerald-600 rounded-lg text-white font-bold">同步修改并退出</button>
+        </div>
+    </div>
+
+    <!-- 3. 新建比赛弹窗 -->
+    <div id="add-match-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+            <h3 class="serif-font text-amber-500 text-lg font-semibold mb-4">创建新比赛赛程</h3>
+            <div class="space-y-3 mb-5">
+                <div>
+                    <label class="block text-[10px] uppercase text-slate-400 mb-1">组别</label>
+                    <select id="new-group" class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-sm text-slate-200">
+                        <option value="男子单打">男子单打</option>
+                        <option value="女子单打">女子单打</option>
+                        <option value="混合双打">混合双打</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] uppercase text-slate-400 mb-1">A 队/选手姓名</label>
+                    <input type="text" id="new-team-a" placeholder="选手 A" class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] uppercase text-slate-400 mb-1">B 队/选手姓名</label>
+                    <input type="text" id="new-team-b" placeholder="选手 B" class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="closeAddMatchModal()" class="w-1/2 py-2 text-xs rounded-lg bg-slate-800 text-slate-400">取消</button>
+                <button onclick="submitNewMatch()" class="w-1/2 py-2 text-xs rounded-lg bg-amber-500 text-slate-950 font-bold">确认创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT ================= -->
+    <script>
+        // 🌟 1. 连接你的 Supabase 数据库
+        const SUPABASE_URL = "https://arpbtddvvfybfyglzamo.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_ivtYWN-M6mE3feQk4AABbg_fCNVIr_y"; 
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // 本地状态
+        let matches = [];
+        let currentFilter = 'all';
+        let verifiedAdmin = false; // 裁判鉴权标记
+        let pendingAction = null;  // 临时存放需要密码保护的操作
+
+        // 专注执裁模式下的临时状态
+        let focusMatchId = null;
+        let focusScoreA = 0;
+        let focusScoreB = 0;
+        let focusServe = 'a'; // 'a' 或 'b'
+
+        // 🚀 初始化加载
+        window.addEventListener('DOMContentLoaded', () => {
+            loadMatchesFromCloud();
+            setupRealtimeSubscription();
+            
+            // 监听移动端滑动切换圆点
+            const container = document.getElementById('matches-container');
+            container.addEventListener('scroll', updateCarouselDots);
+        });
+
+        // 📥 从 Supabase 拉取所有最新数据
+        async function loadMatchesFromCloud() {
+            setSyncStatus('syncing', '正在从云端拉取...');
+            try {
+                const { data, error } = await supabase
+                    .from('matches')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+
+                matches = data.map(dbMatch => ({
+                    id: dbMatch.match_id,
+                    group: dbMatch.group_name,
+                    teamA: dbMatch.team_a,
+                    teamB: dbMatch.team_b,
+                    scoreA: dbMatch.score_a,
+                    scoreB: dbMatch.score_b,
+                    // 解析状态 (如: ongoing_a 表示进行中且A发球, completed_a 表示A获胜结束)
+                    serve: dbMatch.status.endsWith('_a') ? 'a' : (dbMatch.status.endsWith('_b') ? 'b' : 'a'),
+                    status: dbMatch.status.startsWith('completed') ? 'completed' : 'ongoing'
+                }));
+
+                renderMatches();
+                setSyncStatus('success', '云端已实时同步');
+            } catch (err) {
+                console.error("无法加载云端数据:", err);
+                setSyncStatus('error', '连接断开，正试用本地缓存');
+                // 容灾处理：尝试读取本地 LocalStorage
+                const local = localStorage.getItem('local_matches_backup');
+                if (local) {
+                    matches = JSON.parse(local);
+                    renderMatches();
+                }
+            }
+        }
+
+        // 📡 开启 Realtime (实时多端广播) 核心魔法！
+        function setupRealtimeSubscription() {
+            supabase
+                .channel('public:matches')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, (payload) => {
+                    console.log('检测到云端更新:', payload);
+                    // 云端发生任何增加、删除或修改，所有客户端无感拉取渲染
+                    loadMatchesFromCloud();
+                })
+                .subscribe();
+        }
+
+        // 📤 上传保存单场数据到云端
+        async function saveMatchToCloud(match) {
+            setSyncStatus('syncing', '正在保存到云端...');
+            // 将本地状态还原为数据库结构
+            const dbStatus = match.status === 'completed' 
+                ? `completed_${match.scoreA > match.scoreB ? 'a' : 'b'}`
+                : `ongoing_${match.serve}`;
+
+            try {
+                const { error } = await supabase
+                    .from('matches')
+                    .upsert({
+                        match_id: match.id,
+                        group_name: match.group,
+                        team_a: match.teamA,
+                        team_b: match.teamB,
+                        score_a: match.scoreA,
+                        score_b: match.scoreB,
+                        status: dbStatus
+                    }, { onConflict: 'match_id' });
+
+                if (error) throw error;
+                setSyncStatus('success', '云端保存成功');
+                // 同步本地缓存
+                localStorage.setItem('local_matches_backup', JSON.stringify(matches));
+            } catch (err) {
+                console.error("云端保存失败:", err);
+                setSyncStatus('error', '保存失败，已存入本地离线队列');
+                localStorage.setItem('local_matches_backup', JSON.stringify(matches));
+            }
+        }
+
+        // ❌ 从云端彻底删除某场比赛
+        async function deleteMatchFromCloud(matchId) {
+            setSyncStatus('syncing', '正在从云端删除...');
+            try {
+                const { error } = await supabase
+                    .from('matches')
+                    .delete()
+                    .eq('match_id', matchId);
+
+                if (error) throw error;
+                setSyncStatus('success', '彻底删除成功');
+            } catch (err) {
+                console.error("云端删除失败:", err);
+                setSyncStatus('error', '删除失败');
+            }
+        }
+
+        // 状态指示器辅助函数
+        function setSyncStatus(state, text) {
+            const indicator = document.getElementById('sync-indicator').querySelector('span:last-child');
+            const textEl = document.getElementById('sync-text');
+            textEl.innerText = text;
+
+            if (state === 'syncing') {
+                indicator.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500";
+            } else if (state === 'success') {
+                indicator.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+            } else {
+                indicator.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500";
+            }
+        }
+
+        // ================= 核心计分交互逻辑 =================
+
+        // 渲染页面卡片
+        function renderMatches() {
+            const container = document.getElementById('matches-container');
+            container.innerHTML = '';
+
+            const filtered = currentFilter === 'all' 
+                ? matches 
+                : matches.filter(m => m.group === currentFilter);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="w-full text-center py-12 text-slate-600 serif-font col-span-2">当前组别暂无赛程安排</div>`;
+                updateCarouselDots();
+                return;
+            }
+
+            filtered.forEach((match) => {
+                const card = document.createElement('div');
+                // 移动端全宽 snap 卡片，桌面端两栏
+                card.className = "snap-card min-w-full md:min-w-0 w-full bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden backdrop-blur-sm";
+                card.id = `card-${match.id}`;
+
+                const isCompleted = match.status === 'completed';
+
+                card.innerHTML = `
+                    <div>
+                        <!-- 卡片页眉 -->
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-[10px] font-bold tracking-wider text-amber-500 uppercase bg-amber-500/10 px-2 py-0.5 rounded">${match.group}</span>
+                            <span class="text-[10px] ${isCompleted ? 'text-rose-500 font-bold' : 'text-emerald-500'}">${isCompleted ? '● 比赛结束' : '● 正在进行'}</span>
+                        </div>
+
+                        <!-- 双方对决信息 -->
+                        <div class="flex items-center justify-between gap-4 my-2">
+                            <!-- A 选手 -->
+                            <div class="w-[45%] flex flex-col items-center">
+                                <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center font-bold text-sm text-slate-300 relative transition-all ${!isCompleted && match.serve === 'a' ? 'serve-glow border-2 border-olive-light text-white' : 'border border-slate-700'}">
+                                    A
+                                    ${!isCompleted && match.serve === 'a' ? '<span class="absolute -top-1 -right-1 bg-olive text-[8px] text-white px-1 rounded-full scale-75">发球</span>' : ''}
+                                </div>
+                                <span class="serif-font text-xs font-semibold mt-2 text-center text-slate-200 truncate w-full">${match.teamA}</span>
+                                <div class="text-4xl font-bold mt-3 select-none text-slate-100">${match.scoreA}</div>
+                            </div>
+
+                            <!-- VS 分割线 -->
+                            <div class="text-xs font-bold text-slate-700 italic">VS</div>
+
+                            <!-- B 选手 -->
+                            <div class="w-[45%] flex flex-col items-center">
+                                <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center font-bold text-sm text-slate-300 relative transition-all ${!isCompleted && match.serve === 'b' ? 'serve-glow border-2 border-olive-light text-white' : 'border border-slate-700'}">
+                                    B
+                                    ${!isCompleted && match.serve === 'b' ? '<span class="absolute -top-1 -right-1 bg-olive text-[8px] text-white px-1 rounded-full scale-75">发球</span>' : ''}
+                                </div>
+                                <span class="serif-font text-xs font-semibold mt-2 text-center text-slate-200 truncate w-full">${match.teamB}</span>
+                                <div class="text-4xl font-bold mt-3 select-none text-slate-100">${match.scoreB}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 操作控制台 -->
+                    <div class="border-t border-slate-800/80 pt-4 mt-4 space-y-3">
+                        ${!isCompleted ? `
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <button onclick="requireAdmin(() => adjustScore('${match.id}', 'a', 1))" class="py-2 rounded-lg bg-slate-800 text-slate-200 active:scale-95 transition-all">选手A +1分</button>
+                                <button onclick="requireAdmin(() => adjustScore('${match.id}', 'b', 1))" class="py-2 rounded-lg bg-slate-800 text-slate-200 active:scale-95 transition-all">选手B +1分</button>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-[10px]">
+                                <button onclick="requireAdmin(() => switchServe('${match.id}'))" class="py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-slate-200">换发球</button>
+                                <button onclick="requireAdmin(() => openFocusMode('${match.id}'))" class="py-1.5 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20 active:scale-95 font-semibold">🔍 大屏/专注执裁</button>
+                            </div>
+                            <div class="flex space-x-2 pt-1 text-[10px]">
+                                <button onclick="requireAdmin(() => finishMatch('${match.id}'))" class="w-2/3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all">确认比赛结束</button>
+                                <button onclick="requireAdmin(() => deleteMatch('${match.id}'))" class="w-1/3 py-1.5 rounded border border-rose-950 text-rose-500">删除</button>
+                            </div>
+                        ` : `
+                            <div class="text-center bg-slate-950/60 py-2.5 rounded-lg">
+                                <span class="text-xs font-bold text-amber-500 serif-font">🎉 获胜者: ${match.scoreA > match.scoreB ? match.teamA : match.teamB}</span>
+                            </div>
+                            <div class="flex space-x-2 pt-1 text-[10px]">
+                                <button onclick="requireAdmin(() => reopenMatch('${match.id}'))" class="w-2/3 py-1.5 rounded border border-slate-800 text-slate-400">重新开启此局</button>
+                                <button onclick="requireAdmin(() => deleteMatch('${match.id}'))" class="w-1/3 py-1.5 rounded border border-rose-950 text-rose-500">删除</button>
+                            </div>
+                        `}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            updateCarouselDots();
+        }
+
+        // 调整常规比分
+        function adjustScore(matchId, team, change) {
+            const match = matches.find(m => m.id === matchId);
+            if (!match) return;
+
+            if (team === 'a') {
+                if (match.scoreA + change < 0) {
+                    triggerShake(matchId);
+                    return;
+                }
+                match.scoreA += change;
+            } else {
+                if (match.scoreB + change < 0) {
+                    triggerShake(matchId);
+                    return;
+                }
+                match.scoreB += change;
+            }
+
+            renderMatches();
+            saveMatchToCloud(match);
+        }
+
+        // 切换发球权
+        function switchServe(matchId) {
+            const match = matches.find(m => m.id === matchId);
+            if (!match) return;
+            match.serve = match.serve === 'a' ? 'b' : 'a';
+            renderMatches();
+            saveMatchToCloud(match);
+        }
+
+        // 结束比赛
+        function finishMatch(matchId) {
+            const match = matches.find(m => m.id === matchId);
+            if (!match) return;
+            match.status = 'completed';
+            renderMatches();
+            saveMatchToCloud(match);
+        }
+
+        // 重新开启比赛
+        function reopenMatch(matchId) {
+            const match = matches.find(m => m.id === matchId);
+            if (!match) return;
+            match.status = 'ongoing';
+            renderMatches();
+            saveMatchToCloud(match);
+        }
+
+        // 删除赛程
+        function deleteMatch(matchId) {
+            if (confirm("确定要永久删除这场比赛赛程和数据吗？")) {
+                matches = matches.filter(m => m.id !== matchId);
+                renderMatches();
+                deleteMatchFromCloud(matchId);
+            }
+        }
+
+        // 触发泥板红震颤反馈
+        function triggerShake(matchId) {
+            const card = document.getElementById(`card-${matchId}`);
+            if (card) {
+                card.classList.add('shake-active');
+                setTimeout(() => card.classList.remove('shake-active'), 400);
+            }
+        }
+
+        // ================= 大屏专注执裁模式 (Focus Mode) =================
+
+        // 打开专注模式
+        function openFocusMode(matchId) {
+            const match = matches.find(m => m.id === matchId);
+            if (!match) return;
+
+            focusMatchId = matchId;
+            focusScoreA = match.scoreA;
+            focusScoreB = match.scoreB;
+            focusServe = match.serve;
+
+            document.getElementById('focus-group').innerText = match.group;
+            document.getElementById('focus-name-a').innerText = match.teamA;
+            document.getElementById('focus-name-b').innerText = match.teamB;
+
+            updateFocusUI();
+            document.getElementById('focus-scoreboard').classList.remove('hidden');
+        }
+
+        function adjustFocusScore(team, change) {
+            if (team === 'a') {
+                if (focusScoreA + change < 0) {
+                    triggerFocusShake('a');
+                    return;
+                }
+                focusScoreA += change;
+            } else {
+                if (focusScoreB + change < 0) {
+                    triggerFocusShake('b');
+                    return;
+                }
+                focusScoreB += change;
+            }
+            updateFocusUI();
+        }
+
+        function switchFocusServe() {
+            focusServe = focusServe === 'a' ? 'b' : 'a';
+            updateFocusUI();
+        }
+
+        function updateFocusUI() {
+            document.getElementById('focus-score-a').innerText = focusScoreA;
+            document.getElementById('focus-score-b').innerText = focusScoreB;
+
+            const cardA = document.getElementById('focus-card-a');
+            const cardB = document.getElementById('focus-card-b');
+            const labelA = document.getElementById('focus-serve-a');
+            const labelB = document.getElementById('focus-serve-b');
+
+            if (focusServe === 'a') {
+                cardA.className = cardA.className.replace(/border-slate-850/g, '') + " serve-glow border-2 border-olive-light";
+                cardB.className = cardB.className.replace(/serve-glow border-2 border-olive-light/g, '') + " border border-slate-800/80";
+                labelA.classList.remove('hidden');
+                labelB.classList.add('hidden');
+            } else {
+                cardB.className = cardB.className.replace(/border-slate-850/g, '') + " serve-glow border-2 border-olive-light";
+                cardA.className = cardA.className.replace(/serve-glow border-2 border-olive-light/g, '') + " border border-slate-800/80";
+                labelB.classList.remove('hidden');
+                labelA.classList.add('hidden');
+            }
+        }
+
+        function triggerFocusShake(team) {
+            const card = document.getElementById(`focus-card-${team}`);
+            card.classList.add('shake-active');
+            setTimeout(() => card.classList.remove('shake-active'), 400);
+        }
+
+        function saveAndExitFocus() {
+            const match = matches.find(m => m.id === focusMatchId);
+            if (match) {
+                match.scoreA = focusScoreA;
+                match.scoreB = focusScoreB;
+                match.serve = focusServe;
+                renderMatches();
+                saveMatchToCloud(match);
+            }
+            closeFocusMode();
+        }
+
+        function closeFocusMode() {
+            document.getElementById('focus-scoreboard').classList.add('hidden');
+        }
+
+        // ================= 新增比赛逻辑 =================
+
+        function showAddMatchModal() {
+            requireAdmin(() => {
+                document.getElementById('add-match-modal').classList.remove('hidden');
+            });
+        }
+
+        function closeAddMatchModal() {
+            document.getElementById('add-match-modal').classList.add('hidden');
+        }
+
+        function submitNewMatch() {
+            const group = document.getElementById('new-group').value;
+            const teamA = document.getElementById('new-team-a').value.trim() || "选手 A";
+            const teamB = document.getElementById('new-team-b').value.trim() || "选手 B";
+
+            const newMatch = {
+                id: 'match-' + Date.now(),
+                group: group,
+                teamA: teamA,
+                teamB: teamB,
+                scoreA: 0,
+                scoreB: 0,
+                serve: 'a',
+                status: 'ongoing'
+            };
+
+            matches.push(newMatch);
+            renderMatches();
+            saveMatchToCloud(newMatch);
+
+            // 清空并关闭
+            document.getElementById('new-team-a').value = '';
+            document.getElementById('new-team-b').value = '';
+            closeAddMatchModal();
+        }
+
+        // ================= 裁判身份验证安全锁 (PIN) =================
+
+        function requireAdmin(successCallback) {
+            // 如果在本会话中已经验证过，就不再弹出密码
+            if (verifiedAdmin) {
+                successCallback();
+                return;
+            }
+            pendingAction = successCallback;
+            document.getElementById('pin-modal').classList.remove('hidden');
+            document.getElementById('pin-input').focus();
+        }
+
+        function verifyPIN() {
+            const pin = document.getElementById('pin-input').value;
+            if (pin === '2607') {
+                verifiedAdmin = true;
+                closePinModal();
+                if (pendingAction) {
+                    pendingAction();
+                    pendingAction = null;
+                }
+            } else {
+                alert("校验失败：密码不正确");
+                document.getElementById('pin-input').value = '';
+            }
+        }
+
+        function closePinModal() {
+            document.getElementById('pin-modal').classList.add('hidden');
+            document.getElementById('pin-input').value = '';
+            pendingAction = null;
+        }
+
+        // ================= UI 辅助细节 (筛选/滑动/轮播) =================
+
+        function filterGroup(group) {
+            currentFilter = group;
+            
+            // 样式高亮切换
+            const buttons = document.querySelectorAll('.group-btn');
+            buttons.forEach(btn => {
+                btn.className = "group-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all";
+            });
+            event.target.className = "group-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-amber-500 text-slate-950 transition-all";
+
+            renderMatches();
+        }
+
+        // 更新移动端卡片滑动提示小圆点
+        function updateCarouselDots() {
+            const container = document.getElementById('matches-container');
+            const dotsContainer = document.getElementById('carousel-dots');
+            dotsContainer.innerHTML = '';
+
+            // 桌面端不显示圆点
+            if (window.innerWidth >= 768) return;
+
+            const cards = container.children;
+            if (cards.length <= 1 || cards[0].classList.contains('text-center')) return;
+
+            const scrollLeft = container.scrollLeft;
+            const cardWidth = container.clientWidth;
+            const activeIndex = Math.round(scrollLeft / cardWidth);
+
+            for (let i = 0; i < cards.length; i++) {
+                const dot = document.createElement('div');
+                dot.className = `h-1.5 rounded-full transition-all ${i === activeIndex ? 'w-4 bg-amber-500' : 'w-1.5 bg-slate-700'}`;
+                dotsContainer.appendChild(dot);
+            }
+        }
+    </script>
+</body>
+</html>
