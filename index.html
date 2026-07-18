@@ -145,14 +145,17 @@
     transform: rotate(-20deg);
   }
 
-  
+        
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+  // 确保使用 Supabase 提供的真实 URL 和 ANON_KEY
+  const supabase = supabase.createClient('https://arpbtddvvfybfyglzamo.supabase.co', 'sb_publishable_ivtYWN-M6mE3feQk4AABbg_fCNVIr_y');
+</script>
+
 </head>
 <script>
-  // 必须确保使用你实际项目中的 URL 和 Key
-  const supabase = supabase.createClient('https://arpbtddvvfybfyglzamo.supabase.co/rest/v1/', 'sb_publishable_ivtYWN-M6mE3feQk4AABbg_fCNVIr_y');
-</script>
+ 
 <body class="bg-[#FAF8F5] text-[#211F1D] select-none overflow-x-hidden min-h-screen flex flex-col justify-between">
  <!-- 动态景深背景层 (优雅线条版) -->
   <div class="parallax-bg-container">
