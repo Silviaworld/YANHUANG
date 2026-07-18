@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>2026 炎黄中文学校·羽毛球大赛 (版本3)</title>
+    <title>2026 炎黄中文学校·羽毛球大赛 </title>
     <!-- 引入高级现代几何字体、日系高雅 Kaisei Tokumin 字体 & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -148,14 +148,12 @@
         
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>
-  // 确保使用 Supabase 提供的真实 URL 和 ANON_KEY
-  const supabase = supabase.createClient('https://arpbtddvvfybfyglzamo.supabase.co', 'sb_publishable_ivtYWN-M6mE3feQk4AABbg_fCNVIr_y');
-</script>
-
-</head>
 <script>
- 
+  window.supabase = supabase.createClient('https://arpbtddvvfybfyglzamo.supabase.co', 'sb_publishable_ivtYWN-M6mE3feQk4AABbg_FCNVIr_y');
+</script>
+    
+</head> 
+    
 <body class="bg-[#FAF8F5] text-[#211F1D] select-none overflow-x-hidden min-h-screen flex flex-col justify-between">
  <!-- 动态景深背景层 (优雅线条版) -->
   <div class="parallax-bg-container">
@@ -1408,7 +1406,7 @@ let liveMatches = [
 
 // 1. 启动时从云端同步一次
 async function syncMatchesFromCloud() {
-    const { data, error } = await supabase.from('match_state').select('*');
+    const { data, error } = await window.supabase.from('match_state').select('*');
     if (data && data.length > 0) {
         liveMatches = data;
         renderLiveCards(); // 立即刷新大屏画面
@@ -1416,7 +1414,7 @@ async function syncMatchesFromCloud() {
 }
 
 // 2. 建立实时监听（这是实现实时联动的核心）
-supabase.channel('public:match_state')
+window.supabase.channel('public:match_state')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'match_state' }, payload => {
         console.log('检测到数据库变更，同步更新中...');
         syncMatchesFromCloud(); // 数据库一变，前端立刻自动更新
