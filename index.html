@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>2026 炎黄中文学校·羽毛球大赛 (版本3)</title>
+    <!-- 引入高级现代几何字体、日系高雅 Kaisei Tokumin 字体 & Tailwind CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kaisei+Tokumin:wght@800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,600;0,800;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        }
+        /* Kaisei Tokumin 字体专用于大标题，彰显文化底蕴 */
+        .kaisei-title {
+            font-family: 'Kaisei Tokumin', serif;
+        }
+
+        /* 1. 优雅橄榄绿发球权呼吸动效 */
+        @keyframes serve-pulse {
+            0%, 100% { 
+                opacity: 1; 
+                transform: scale(1.08); 
+                filter: drop-shadow(0 0 12px rgba(74, 96, 68, 0.5)); 
+            }
+            50% { 
+                opacity: 0.5; 
+                transform: scale(0.95); 
+                filter: drop-shadow(0 0 1px rgba(74, 96, 68, 0)); 
+            }
+        }
+        .serve-glow {
+            animation: serve-pulse 2s infinite ease-in-out;
+        }
+
+        /* 2. 软陶红无效操作微震颤动效 */
+        @keyframes error-shake {
+            0%, 100% { transform: translateX(0); }
+            15%, 45%, 75% { transform: translateX(-4px); }
+            30%, 60%, 90% { transform: translateX(4px); }
+        }
+        .shake-active {
+            animation: error-shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            box-shadow: inset 0 0 30px rgba(179, 78, 62, 0.15) !important;
+        }
+
+        /* 3. 隐藏滑动滚动条但保留滚动功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* === 背景景深样式 (清爽安全版) === */
+  .parallax-bg-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1; /* 确保藏在内容后面 */
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .shuttlecock-bg {
+    position: absolute;
+    transform-origin: center;
+    transition: transform 0.1s ease-out;
+  }
+  .shuttle-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 羽毛扇面：极淡的半透明米白色，绝不突兀 */
+  .shuttle-feather-bg {
+    fill: rgba(245, 235, 215, 0.25);
+    stroke: none;
+  }
+
+  /* 羽毛骨架线：精致的浅沙褐色线条 */
+  .shuttle-line {
+    stroke: rgba(180, 155, 120, 0.35);
+    stroke-width: 2px;
+    stroke-linecap: round;
+  }
+
+  /* 横向网格线：同样轻盈 */
+  .shuttle-grid {
+    fill: none;
+    stroke: rgba(180, 155, 120, 0.35);
+    stroke-width: 1.5px;
+  }
+
+  /* 软木球托：稍微凝实一点的暖米色，带圆润粗边框 */
+  .shuttle-cork-base {
+    fill: rgba(225, 200, 165, 0.6);
+    stroke: rgba(170, 145, 110, 0.4);
+    stroke-width: 2px;
+  }
+
+  /* 运动拖尾线 */
+  .motion-lines {
+    position: absolute;
+    border-top: 3px solid rgba(180, 155, 120, 0.15);
+    height: 0;
+  }
+
+  /* 远景主羽毛球：优雅地居中靠上偏转 */
+  .major-shuttle {
+    width: 55vh;
+    height: 55vh;
+    top: 15%;
+    left: 50%;
+    transform: translate(-50%, 0) rotate(-25deg);
+    filter: blur(1px); /* 微微虚化，增加高级感 */
+    opacity: 0.8;
+  }
+
+  /* 左上小羽毛球 */
+  .pos-top-left {
+    width: 15vh;
+    height: 15vh;
+    top: 15%;
+    left: 10%;
+    transform: rotate(-45deg);
+  }
+  .line-left-1 {
+    width: 70px;
+    top: -10px;
+    left: -80px;
+    transform: rotate(20deg);
+  }
+
+  /* 右下小羽毛球 */
+  .pos-bottom-right {
+    width: 18vh;
+    height: 18vh;
+    bottom: 15%;
+    right: 10%;
+    transform: rotate(135deg);
+  }
+  .line-right-1 {
+    width: 80px;
+    top: -15px;
+    right: -90px;
+    transform: rotate(-20deg);
+  }
+
+  
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-[#FAF8F5] text-[#211F1D] select-none overflow-x-hidden min-h-screen flex flex-col justify-between">
+ <!-- 动态景深背景层 (优雅线条版) -->
+  <div class="parallax-bg-container">
+    <!-- 远景：大羽毛球 -->
+    <div class="shuttlecock-bg major-shuttle depth-far" data-speed="0.02">
+      <svg viewBox="0 0 100 100" class="shuttle-svg">
+        <!-- 半透明羽毛背景扇面 -->
+        <path d="M 50,75 L 15,15 L 85,15 Z" class="shuttle-feather-bg" />
+        <!-- 羽毛主骨架线 -->
+        <line x1="50" y1="75" x2="15" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="32" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="50" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="68" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="85" y2="15" class="shuttle-line" />
+        <!-- 横向网格线圈 -->
+        <path d="M 27,35 Q 50,40 73,35" class="shuttle-grid" />
+        <path d="M 21,23 Q 50,28 79,23" class="shuttle-grid" />
+        <!-- 底部球托 -->
+        <path d="M 40,75 C 40,88 60,88 60,75 Z" class="shuttle-cork-base" />
+      </svg>
+    </div>
+
+    <!-- 中景：左上小羽毛球 -->
+    <div class="shuttlecock-bg minor-shuttle depth-medium pos-top-left" data-speed="0.05">
+      <div class="motion-lines line-left-1"></div>
+      <svg viewBox="0 0 100 100" class="shuttle-svg">
+        <path d="M 50,75 L 15,15 L 85,15 Z" class="shuttle-feather-bg" />
+        <line x1="50" y1="75" x2="15" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="32" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="50" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="68" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="85" y2="15" class="shuttle-line" />
+        <path d="M 27,35 Q 50,40 73,35" class="shuttle-grid" />
+        <path d="M 40,75 C 40,88 60,88 60,75 Z" class="shuttle-cork-base" />
+      </svg>
+    </div>
+
+    <!-- 近景：右下小羽毛球 -->
+    <div class="shuttlecock-bg minor-shuttle depth-close pos-bottom-right" data-speed="0.08">
+      <div class="motion-lines line-right-1"></div>
+      <svg viewBox="0 0 100 100" class="shuttle-svg">
+        <path d="M 50,75 L 15,15 L 85,15 Z" class="shuttle-feather-bg" />
+        <line x1="50" y1="75" x2="15" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="32" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="50" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="68" y2="15" class="shuttle-line" />
+        <line x1="50" y1="75" x2="85" y2="15" class="shuttle-line" />
+        <path d="M 27,35 Q 50,40 73,35" class="shuttle-grid" />
+        <path d="M 40,75 C 40,88 60,88 60,75 Z" class="shuttle-cork-base" />
+      </svg>
+    </div>
+  </div>
+
+    <!-- ========================================== -->
+    <!-- 1. 顶部导航栏 -->
+    <!-- ========================================== -->
+    <header class="flex justify-between items-center px-6 py-4 bg-[#FAF8F5]/80 backdrop-blur-md border-b border-[#EDE9E0] sticky top-0 z-40 shrink-0 transition-all">
+        <div class="flex items-center gap-3">
+            <span class="text-sm md:text-base font-extrabold tracking-wider text-[#211F1D] flex items-center gap-1.5">
+                🏸 <span class="text-[#C59B27] font-black kaisei-title">炎黄中文学校</span> <span class="text-stone-400 font-light">|</span> 羽毛球大赛
+            </span>
+           <span id="referee-badge" class="hidden text-[12px] sm:text-[13px] tracking-wider bg-[#B34E3E]/10 text-[#B34E3E] px-3.5 py-1.5 rounded-full font-black border border-[#B34E3E]/30 flex items-center gap-1.5 shadow-sm">
+  <span class="serve-glow" style="display: inline-block; width: 8px; height: 8px; background-color: #B34E3E; border-radius: 50%;"></span>
+  裁判执裁中
+</span>
+        </div>
+        
+        <div class="flex items-center gap-2 md:gap-3">
+            <!-- 在线/离线开关 (断网保护) -->
+            <button onclick="toggleNetwork()" id="network-btn" class="text-xs bg-[#4A6044]/5 text-[#4A6044] px-3.5 py-2 rounded-xl border border-[#4A6044]/10 flex items-center gap-1.5 font-bold transition-all shadow-sm active:scale-95">
+                🛜 模拟在线
+            </button>
+            <!-- 登录控制 -->
+            <button id="btn-login-trigger" onclick="openLoginModal()" class="bg-[#C59B27] hover:bg-[#B28A20] text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-[0_4px_12px_rgba(197,155,39,0.15)] hover:shadow-[0_6px_16px_rgba(197,155,39,0.25)] active:scale-95">
+                裁判登录
+            </button>
+            <button id="btn-logout-trigger" onclick="logoutReferee()" class="hidden bg-[#EDE9E0]/60 hover:bg-[#EDE9E0] text-[#B34E3E] font-bold text-xs px-4 py-2 rounded-xl border border-[#E3DDD0] transition-all active:scale-95">
+                退出执裁
+            </button>
+        </div>
+    </header>
+
+    <!-- 主体视口容器 -->
+    <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 space-y-10">
+
+        <!-- ========================================== -->
+        <!-- 2. 头部标题区 & 分组标签栏 -->
+        <!-- ========================================== -->
+        <section class="text-center space-y-6">
+            <div class="space-y-2">
+                <h1 class="text-3xl md:text-5xl font-black tracking-tight text-[#211F1D] leading-tight kaisei-title">
+                    2026 炎黄中文学校 <span class="text-[#C59B27]">·</span> 羽毛球大赛
+                </h1>
+                <p class="text-[9px] md:text-xs text-[#8E8A81] font-semibold tracking-[0.2em] uppercase">
+                    Torneo di Badminton della Scuola Cinese Yanhuang
+                </p>
+            </div>
+
+            <!-- 分组标签栏：手机横向防挤压滚动 -->
+            <div class="flex justify-start sm:justify-center overflow-x-auto gap-1.5 bg-[#EDE9E0]/40 p-1.5 rounded-2xl max-w-md mx-auto border border-[#E3DDD0]/50 no-scrollbar shadow-inner">
+                <button onclick="filterGroup('all')" id="tab-all" class="shrink-0 flex-1 py-2 px-4 text-xs font-bold rounded-xl transition-all bg-[#C59B27] text-white shadow-[0_4px_12px_rgba(197,155,39,0.25)]">
+                    全部对局
+                </button>
+                <button onclick="filterGroup('男子组')" id="tab-men" class="shrink-0 flex-1 py-2 px-4 text-xs font-semibold rounded-xl text-[#7E7970] hover:text-[#211F1D] hover:bg-[#EDE9E0]/40 transition-all">
+                    男子组
+                </button>
+                <button onclick="filterGroup('女子组')" id="tab-women" class="shrink-0 flex-1 py-2 px-4 text-xs font-semibold rounded-xl text-[#7E7970] hover:text-[#211F1D] hover:bg-[#EDE9E0]/40 transition-all">
+                    女子组
+                </button>
+                <button onclick="filterGroup('少儿组')" id="tab-kids" class="shrink-0 flex-1 py-2 px-4 text-xs font-semibold rounded-xl text-[#7E7970] hover:text-[#211F1D] hover:bg-[#EDE9E0]/40 transition-all">
+                    少儿组
+                </button>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 3. 实时比赛战区（LIVE SCORE） -->
+        <!-- ========================================== -->
+        <section class="space-y-4">
+            <div class="flex justify-between items-center px-1">
+                <h2 class="text-base md:text-xl font-extrabold text-[#211F1D] flex items-center gap-2 kaisei-title">
+                    <span class="inline-block w-2.5 h-2.5 bg-[#B34E3E] rounded-full animate-pulse"></span>
+                    正在热战中 <span class="text-[9px] font-black text-[#B34E3E] tracking-widest bg-[#B34E3E]/10 px-2 py-0.5 rounded-md">LIVE SCORE</span>
+                </h2>
+                <button id="btn-global-player" onclick="openPlayerManagement()" class="hidden text-xs bg-[#FAF8F5] hover:bg-[#EDE9E0]/50 text-[#C59B27] border border-[#E3DDD0] px-3.5 py-2 rounded-xl font-bold transition-all active:scale-95">
+                    📋 选手名单录入
+                </button>
+            </div>
+
+            <!-- 滑动自适应提示区 -->
+            <div class="relative w-full">
+                <!-- 手机滑动提示 -->
+                <div class="lg:hidden flex justify-center items-center gap-2 text-[#8E8A81] text-[11px] mb-2 font-bold">
+                    <span class="animate-pulse text-[#C59B27]">◀</span>
+                    <span class="tracking-wider">左右滑动查看不同分组对局</span>
+                    <span class="animate-pulse text-[#C59B27]">▶</span>
+                </div>
+                
+                <!-- 手机滑动圆点页码指示器 -->
+                <div id="live-carousel-dots" class="lg:hidden flex justify-center gap-1.5 mb-4">
+                    <span id="dot-0" class="w-5 h-1.5 rounded-full bg-[#C59B27] transition-all duration-300"></span>
+                    <span id="dot-1" class="w-1.5 h-1.5 rounded-full bg-stone-300/80 transition-all duration-300"></span>
+                </div>
+
+                <!-- 双路卡片容器：手机上横滚 + 弹性对齐，PC上恢复双网格布局 -->
+                <div id="live-cards-container" class="flex lg:grid lg:grid-cols-2 gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-3 no-scrollbar" onscroll="handleLiveScroll(this)">
+                    
+                    <!-- 左路卡片：Slot 0 -->
+                    <div id="live-card-0" class="w-full shrink-0 snap-center lg:w-auto bg-gradient-to-br from-[#FCFAF6] to-[#F1ECE0] border border-[#EDE9E0]/80 rounded-3xl p-6 flex flex-col justify-between shadow-[0_12px_40px_rgba(0,0,0,0.02)] border-t border-t-white relative overflow-hidden transition-all duration-300 hover:shadow-[0_18px_48px_rgba(0,0,0,0.05)] hover:-translate-y-0.5">
+                        <div class="flex justify-between items-center mb-6 z-10">
+                            <div class="flex items-center gap-2">
+                                <span id="live-group-badge-0" class="bg-[#3D5467]/5 text-[#3D5467] text-[11px] px-3 py-1 rounded-lg border border-[#3D5467]/10 font-bold">男子组预赛</span>
+                                <button onclick="openSetupModal(0)" class="referee-ctrl hidden text-stone-400 hover:text-[#C59B27] transition-all hover:scale-110 active:scale-95 text-sm">⚙️</button>
+                            </div>
+                            <span id="live-timer-0" class="text-xs font-mono font-bold text-[#4A6044] bg-[#4A6044]/5 border border-[#4A6044]/10 px-2.5 py-1 rounded-lg">00:00</span>
+                        </div>
+
+                        <!-- 选手比分对战区 -->
+                        <div class="flex items-center justify-between my-4 gap-2 z-10">
+                            <!-- 选手 A -->
+                            <div class="w-1/3 flex flex-col items-center text-center">
+                                <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-[#3D5467] to-[#6FA0C7] p-[3px] shadow-sm">
+                                    <div class="w-full h-full rounded-full bg-[#FAF8F5] flex items-center justify-center font-extrabold text-[#3D5467] text-sm" id="live-avatar-0-A">A</div>
+                                </div>
+                                <span id="live-name-0-A" class="mt-3 text-xs md:text-sm font-black text-stone-800 truncate max-w-[90px]">选手 A</span>
+                                <span id="live-serve-0-A" class="text-[10px] text-[#4A6044] font-bold bg-[#4A6044]/5 px-2 py-0.5 rounded-full mt-1.5 serve-glow border border-[#4A6044]/10">🏸 发球</span>
+                            </div>
+
+                            <!-- 核心比分显示 -->
+                            <div class="flex-1 flex flex-col items-center">
+                                <div class="flex items-center gap-3">
+                                    <span id="live-score-0-A" class="text-4xl md:text-5xl font-black text-[#3D5467] font-mono tracking-tighter">0</span>
+                                    <span class="text-stone-300 font-light text-2xl">:</span>
+                                    <span id="live-score-0-B" class="text-4xl md:text-5xl font-black text-[#B34E3E] font-mono tracking-tighter">0</span>
+                                </div>
+                                <!-- 局数圆点/皇冠进度 -->
+                                <div id="live-progress-0" class="flex gap-1.5 mt-3 text-xs text-[#C59B27] drop-shadow-sm font-semibold">
+                                    <!-- ◯ 👑 ⚫ -->
+                                </div>
+                            </div>
+
+                            <!-- 选手 B -->
+                            <div class="w-1/3 flex flex-col items-center text-center">
+                                <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-[#B34E3E] to-[#E38F80] p-[3px] shadow-sm">
+                                    <div class="w-full h-full rounded-full bg-[#FAF8F5] flex items-center justify-center font-extrabold text-[#B34E3E] text-sm" id="live-avatar-0-B">B</div>
+                                </div>
+                                <span id="live-name-0-B" class="mt-3 text-xs md:text-sm font-black text-stone-800 truncate max-w-[90px]">选手 B</span>
+                                <span id="live-serve-0-B" class="text-[10px] text-[#4A6044] font-bold bg-[#4A6044]/5 px-2 py-0.5 rounded-full mt-1.5 serve-glow border border-[#4A6044]/10 hidden">🏸 发球</span>
+                            </div>
+                        </div>
+
+                        <!-- 底部统一按钮 -->
+                        <button onclick="launchMatchView(0)" class="w-full mt-4 bg-[#EDE9E0]/40 hover:bg-[#EDE9E0]/80 text-stone-700 font-extrabold py-3 rounded-2xl text-xs transition-all border border-[#EDE9E0] active:scale-[0.98]">
+                            放大执裁 / 专注观看
+                        </button>
+                    </div>
+
+                    <!-- 右路卡片：Slot 1 -->
+                    <div id="live-card-1" class="w-full shrink-0 snap-center lg:w-auto bg-gradient-to-br from-[#FCFAF6] to-[#F1ECE0] border border-[#EDE9E0]/80 rounded-3xl p-6 flex flex-col justify-between shadow-[0_12px_40px_rgba(0,0,0,0.02)] border-t border-t-white relative overflow-hidden transition-all duration-300 hover:shadow-[0_18px_48px_rgba(0,0,0,0.05)] hover:-translate-y-0.5">
+                        <div class="flex justify-between items-center mb-6 z-10">
+                            <div class="flex items-center gap-2">
+                                <span id="live-group-badge-1" class="bg-[#C59B27]/5 text-[#C59B27] text-[11px] px-3 py-1 rounded-lg border border-[#C59B27]/10 font-bold">少儿组预赛</span>
+                                <button onclick="openSetupModal(1)" class="referee-ctrl hidden text-stone-400 hover:text-[#C59B27] transition-all hover:scale-110 active:scale-95 text-sm">⚙️</button>
+                            </div>
+                            <span id="live-timer-1" class="text-xs font-mono font-bold text-[#4A6044] bg-[#4A6044]/5 border border-[#4A6044]/10 px-2.5 py-1 rounded-lg">00:00</span>
+                        </div>
+
+                        <!-- 选手比分对战区 -->
+                        <div class="flex items-center justify-between my-4 gap-2 z-10">
+                            <!-- 选手 A -->
+                            <div class="w-1/3 flex flex-col items-center text-center">
+                                <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-[#3D5467] to-[#6FA0C7] p-[3px] shadow-sm">
+                                    <div class="w-full h-full rounded-full bg-[#FAF8F5] flex items-center justify-center font-extrabold text-[#3D5467] text-xs" id="live-avatar-1-A">选手C</div>
+                                </div>
+                                <span id="live-name-1-A" class="mt-3 text-xs md:text-sm font-black text-stone-800 truncate max-w-[90px]">选手 C</span>
+                                <span id="live-serve-1-A" class="text-[10px] text-[#4A6044] font-bold bg-[#4A6044]/5 px-2 py-0.5 rounded-full mt-1.5 serve-glow border border-[#4A6044]/10">🏸 发球</span>
+                            </div>
+
+                            <!-- 核心比分显示 -->
+                            <div class="flex-1 flex flex-col items-center">
+                                <div class="flex items-center gap-3">
+                                    <span id="live-score-1-A" class="text-4xl md:text-5xl font-black text-[#3D5467] font-mono tracking-tighter">0</span>
+                                    <span class="text-stone-300 font-light text-2xl">:</span>
+                                    <span id="live-score-1-B" class="text-4xl md:text-5xl font-black text-[#B34E3E] font-mono tracking-tighter">0</span>
+                                </div>
+                                <!-- 局数圆点/皇冠进度 -->
+                                <div id="live-progress-1" class="flex gap-1.5 mt-3 text-xs text-[#C59B27] drop-shadow-sm font-semibold">
+                                    <!-- ◯ 👑 ⚫ -->
+                                </div>
+                            </div>
+
+                            <!-- 选手 B -->
+                            <div class="w-1/3 flex flex-col items-center text-center">
+                                <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-[#B34E3E] to-[#E38F80] p-[3px] shadow-sm">
+                                    <div class="w-full h-full rounded-full bg-[#FAF8F5] flex items-center justify-center font-extrabold text-[#B34E3E] text-sm" id="live-avatar-1-B">D</div>
+                                </div>
+                                <span id="live-name-1-B" class="mt-3 text-xs md:text-sm font-black text-stone-800 truncate max-w-[90px]">选手 D</span>
+                                <span id="live-serve-1-B" class="text-[10px] text-[#4A6044] font-bold bg-[#4A6044]/5 px-2 py-0.5 rounded-full mt-1.5 serve-glow border border-[#4A6044]/10 hidden">🏸 发球</span>
+                            </div>
+                        </div>
+
+                        <!-- 底部统一按钮 -->
+                        <button onclick="launchMatchView(1)" class="w-full mt-4 bg-[#EDE9E0]/40 hover:bg-[#EDE9E0]/80 text-stone-700 font-extrabold py-3 rounded-2xl text-xs transition-all border border-[#EDE9E0] active:scale-[0.98]">
+                            放大执裁 / 专注观看
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 4. 历史榜单区域 (双看板) -->
+        <!-- ========================================== -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- 左看板：预赛胜负纪录榜 -->
+            <div class="space-y-4">
+                <h3 class="text-base md:text-lg font-black text-[#3D5467] flex items-center gap-2 px-1 kaisei-title">
+                    🏆 <span>预赛胜负纪录榜</span>
+                </h3>
+                <div class="bg-[#FCFAF6] border border-[#EDE9E0]/80 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.02)] min-h-[320px] flex flex-col">
+                    <div class="overflow-x-auto no-scrollbar">
+                        <table class="w-full text-left border-collapse text-xs min-w-[380px]">
+                            <thead>
+                                <tr class="border-b border-[#EDE9E0] text-[#8E8A81] font-extrabold tracking-wider uppercase">
+                                    <th class="pb-4 text-left w-16">组别</th>
+                                    <th class="pb-4 text-left">对决对阵</th>
+                                    <th class="pb-4 text-center">战局分</th>
+                                    <th class="pb-4 text-right">完赛优胜者</th>
+                                    <th class="pb-4 text-center w-12 referee-ctrl hidden">管理</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prelim-table-body" class="divide-y divide-[#EDE9E0]/40">
+                                <!-- 动态插入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右看板：决赛胜负纪录榜 -->
+            <div class="space-y-4">
+                <h3 class="text-base md:text-lg font-black text-[#C59B27] flex items-center gap-2 px-1 kaisei-title">
+                    🏆 <span>决赛胜负纪录榜</span>
+                </h3>
+                <div class="bg-[#FCFAF6] border border-[#EDE9E0]/80 rounded-3xl p-5 shadow-[0_12px_40px_rgba(0,0,0,0.02)] min-h-[320px] flex flex-col">
+                    <div class="overflow-x-auto no-scrollbar">
+                        <table class="w-full text-left border-collapse text-xs min-w-[380px]">
+                            <thead>
+                                <tr class="border-b border-[#EDE9E0] text-[#8E8A81] font-extrabold tracking-wider uppercase">
+                                    <th class="pb-4 text-left w-16">组别</th>
+                                    <th class="pb-4 text-left">对决对阵</th>
+                                    <th class="pb-4 text-center">战局分</th>
+                                    <th class="pb-4 text-right">完赛优胜者</th>
+                                    <th class="pb-4 text-center w-12 referee-ctrl hidden">管理</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finals-table-body" class="divide-y divide-[#EDE9E0]/40">
+                                <!-- 动态插入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="text-center py-8 text-[10px] text-[#8E8A81] font-bold tracking-widest border-t border-[#EDE9E0]/50 mt-12 bg-[#FCFAF6]/50 uppercase">
+        © 2026 炎黄中文学校 
+    </footer>
+
+    <!-- ========================================== -->
+    <!-- 5. 全屏竞技计分面板 (执裁与专注模式双合一) -->
+    <!-- 为保障投屏极端清晰度，保留优雅的高对比度炭墨黑底色 -->
+    <!-- ========================================== -->
+    <div id="full-scoreboard" class="fixed inset-0 bg-[#141312] text-stone-100 z-50 flex flex-col justify-between hidden transition-all duration-300">
+        <!-- 顶栏 -->
+        <header class="flex justify-between items-center px-6 md:px-10 py-5 bg-[#1C1A19]/80 border-b border-[#2D2A28]/50 backdrop-blur-md">
+            <span id="fs-badge" class="bg-[#B34E3E]/10 text-[#E38F80] text-[10px] md:text-xs px-4 py-1.5 rounded-full border border-[#B34E3E]/20 font-extrabold tracking-wider">
+                ● 正在执裁
+            </span>
+            <!-- 计时 -->
+            <div class="text-center">
+                <div id="fs-timer" class="text-3xl md:text-4xl font-mono font-black text-[#4A6044] tracking-tight">00:00</div>
+                <div class="text-[8px] text-stone-500 font-bold tracking-[0.2em] uppercase mt-0.5">Match Elapsed</div>
+            </div>
+            <!-- 退出操作 -->
+            <button id="fs-exit-btn" onclick="exitMatchView()" class="bg-[#2D2A28] hover:bg-[#3D3A37] text-stone-300 font-bold text-xs px-5 py-2.5 rounded-xl border border-[#3D3A37] transition-all active:scale-95">
+                返回大厅
+            </button>
+        </header>
+
+        <!-- 选手对决双屏 -->
+        <div class="flex-1 flex flex-col md:flex-row">
+            <!-- 选手 A (左) -->
+            <section id="pane-A" class="h-1/2 md:h-full md:w-1/2 flex flex-col justify-between p-6 md:p-10 border-b md:border-b-0 md:border-r border-[#2D2A28]/40 bg-gradient-to-b from-[#141312] to-[#3D5467]/5 transition-all duration-300">
+                <div class="flex flex-col items-center gap-2 md:gap-4">
+                    <div class="flex items-center gap-3">
+                        <span id="fs-serve-icon-A" class="serve-glow text-2xl md:text-3xl text-[#4A6044] cursor-pointer filter drop-shadow" onclick="handleServeToggle('A')">🏸</span>
+                        <h2 id="fs-name-A" class="text-2xl md:text-4xl font-black text-white tracking-tight">选手 A</h2>
+                    </div>
+                    <!-- 进度指示 -->
+                    <div id="fs-progress-A" class="flex gap-2 text-xl md:text-3xl text-[#C59B27] tracking-wider"></div>
+                </div>
+
+                <!-- 超大分数 -->
+                <div class="text-center my-auto">
+                    <div id="super-score-A" class="text-[7.5rem] md:text-[16rem] font-black tracking-tighter text-[#6FA0C7] leading-none font-mono">0</div>
+                </div>
+
+                <!-- 控制按钮 -->
+                <div class="referee-btn-group flex gap-4 justify-center shrink-0">
+                    <button onclick="adjustMatchScore('A', -1)" class="w-16 md:w-28 h-14 md:h-20 bg-[#2D2A28] hover:bg-[#3D3A37] active:scale-95 text-stone-400 text-3xl font-black rounded-2xl flex items-center justify-center border border-[#3D3A37]/80 transition-all">-</button>
+                    <button onclick="adjustMatchScore('A', 1)" class="flex-1 h-14 md:h-20 bg-[#3D5467] hover:bg-[#4C687F] active:scale-95 text-white text-3xl font-black rounded-2xl flex items-center justify-center shadow-lg transition-all">+</button>
+                </div>
+            </section>
+
+            <!-- 选手 B (右) -->
+            <section id="pane-B" class="h-1/2 md:h-full md:w-1/2 flex flex-col justify-between p-6 md:p-10 bg-gradient-to-b from-[#141312] to-[#B34E3E]/5 transition-all duration-300">
+                <div class="flex flex-col items-center gap-2 md:gap-4">
+                    <div class="flex items-center gap-3">
+                        <h2 id="fs-name-B" class="text-2xl md:text-4xl font-black text-white tracking-tight">选手 B</h2>
+                        <span id="fs-serve-icon-B" class="serve-glow text-2xl md:text-3xl text-[#4A6044] cursor-pointer filter drop-shadow hidden" onclick="handleServeToggle('B')">🏸</span>
+                    </div>
+                    <!-- 进度指示 -->
+                    <div id="fs-progress-B" class="flex gap-2 text-xl md:text-3xl text-[#C59B27] tracking-wider"></div>
+                </div>
+
+                <!-- 超大分数 -->
+                <div class="text-center my-auto">
+                    <div id="super-score-B" class="text-[7.5rem] md:text-[16rem] font-black tracking-tighter text-[#E38F80] leading-none font-mono">0</div>
+                </div>
+
+                <!-- 控制按钮 -->
+                <div class="referee-btn-group flex gap-4 justify-center shrink-0">
+                    <button onclick="adjustMatchScore('B', -1)" class="w-16 md:w-28 h-14 md:h-20 bg-[#2D2A28] hover:bg-[#3D3A37] active:scale-95 text-stone-400 text-3xl font-black rounded-2xl flex items-center justify-center border border-[#3D3A37]/80 transition-all">-</button>
+                    <button onclick="adjustMatchScore('B', 1)" class="flex-1 h-14 md:h-20 bg-[#B34E3E] hover:bg-[#C85A4A] active:scale-95 text-white text-3xl font-black rounded-2xl flex items-center justify-center shadow-lg transition-all">+</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- 计分底部控制区 -->
+        <footer id="fs-referee-footer" class="referee-btn-group bg-[#141312] border-t border-[#2D2A28]/50 py-5 px-6 md:px-10 flex justify-between items-center shrink-0">
+            <button onclick="abortCurrentMatch()" class="bg-[#2D2A28] hover:bg-[#3D3A37] text-stone-300 font-bold px-5 md:px-8 py-3.5 md:py-4 rounded-xl text-xs transition-all active:scale-95 border border-[#3D3A37]">
+                ↩️ 放弃并退出
+            </button>
+            <div class="flex gap-3 md:gap-4">
+                <button id="btn-end-round" onclick="endRoundAction()" class="bg-[#C59B27] hover:bg-[#B28A20] text-white font-extrabold px-6 md:px-12 py-3.5 md:py-4 rounded-xl shadow-md transition-all active:scale-95 text-xs md:text-sm">
+                    确认并结束本局
+                </button>
+                <button id="btn-next-round" onclick="startNextRoundAction()" class="hidden bg-[#4A6044] hover:bg-[#3C4E37] text-white font-extrabold px-6 md:px-12 py-3.5 md:py-4 rounded-xl shadow-md transition-all active:scale-95 text-xs md:text-sm">
+                    下一局 ➡️
+                </button>
+                <button id="btn-submit-match" onclick="submitMatchAction()" class="hidden bg-[#C59B27] text-white font-extrabold px-8 md:px-14 py-3.5 md:py-4 rounded-xl shadow-md transition-all active:scale-95 text-xs md:text-sm">
+                    🏁 提交成绩
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 6. 辅助遮罩模态框 -->
+    <!-- ========================================== -->
+    <!-- 弹窗：密码验证 -->
+    <div id="login-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-[#FAF8F5] border border-[#EDE9E0] rounded-3xl p-6 max-w-sm w-full shadow-2xl transition-all">
+            <h3 class="text-base font-extrabold text-stone-800 mb-4 flex items-center gap-2 kaisei-title">🔓 裁判安全认证</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-stone-500 mb-2">输入密码 </label>
+                    <input id="referee-password" type="password" placeholder="请输入密码" class="w-full bg-[#FAF8F5] border border-[#EDE9E0] rounded-xl px-4 py-3 text-sm text-[#211F1D] font-mono focus:outline-none focus:border-[#C59B27] focus:ring-2 focus:ring-[#C59B27]/10 transition-all">
+                    <p id="login-err-msg" class="text-[#B34E3E] text-[11px] font-bold mt-2 hidden">❌ 密码不正确</p>
+                </div>
+                <div class="flex gap-2 justify-end pt-2">
+                    <button onclick="closeLoginModal()" class="bg-[#EDE9E0]/60 text-stone-600 text-xs px-4.5 py-3 rounded-xl font-bold transition-all hover:bg-[#EDE9E0] active:scale-95">返回</button>
+                    <button onclick="verifyReferee()" class="bg-[#C59B27] text-white text-xs px-5 py-3 rounded-xl font-extrabold transition-all hover:bg-[#B28A20] active:scale-95 shadow-md">确认解锁</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗：大厅选手录入 -->
+    <div id="player-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-[#FAF8F5] border border-[#EDE9E0] rounded-3xl p-6 max-w-sm w-full shadow-2xl transition-all">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-black text-stone-800 kaisei-title">📋 选手检录及录入</h3>
+                <span id="player-badge-count" class="text-[10px] bg-stone-200/60 text-stone-600 px-2.5 py-0.5 rounded-full font-bold">0人</span>
+            </div>
+            <div class="space-y-4">
+                <div class="flex gap-2">
+                    <input id="input-player-name" type="text" placeholder="姓名" class="flex-1 bg-[#FAF8F5] border border-[#EDE9E0] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-[#C59B27] focus:ring-2 focus:ring-[#C59B27]/10 transition-all">
+                    <button onclick="addPlayer()" class="bg-[#C59B27] text-white text-xs font-black px-4.5 py-2.5 rounded-xl hover:bg-[#B28A20] active:scale-95 transition-all shadow-md">+</button>
+                </div>
+                <div id="player-list-container" class="space-y-1.5 max-h-48 overflow-y-auto pr-1 no-scrollbar text-xs"></div>
+                <button onclick="closePlayerManagement()" class="w-full mt-2 bg-[#EDE9E0]/60 hover:bg-[#EDE9E0] text-stone-700 font-extrabold py-3 rounded-2xl text-xs transition-all active:scale-[0.98]">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗：开赛配置 -->
+    <div id="setup-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-[#FAF8F5] border border-[#EDE9E0] rounded-3xl p-6 max-w-md w-full shadow-2xl text-xs text-stone-700 transition-all">
+            <h3 class="text-sm font-black text-stone-800 mb-4 flex items-center gap-1.5 kaisei-title">⚙️ 执裁通道开赛配置</h3>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-stone-500 font-bold mb-1.5">赛事阶段</label>
+                        <select id="setup-stage" class="w-full bg-[#FAF8F5] border border-[#EDE9E0] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#C59B27]/10 transition-all font-semibold text-stone-800">
+                            <option value="预赛">预赛</option>
+                            <option value="决赛">决赛</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-stone-500 font-bold mb-1.5">赛事组别</label>
+                        <select id="setup-group" class="w-full bg-[#FAF8F5] border border-[#EDE9E0] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#C59B27]/10 transition-all font-semibold text-stone-800">
+                            <option value="男子组">男子组</option>
+                            <option value="女子组">女子组</option>
+                            <option value="少儿组">少儿组</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-stone-500 font-bold mb-1.5">对阵选手 A (左)</label>
+                        <select id="setup-player-A" class="w-full bg-[#FAF8F5] border border-[#EDE9E0] rounded-xl px-3 py-2.5 text-[#3D5467] font-black focus:outline-none focus:ring-2 focus:ring-[#C59B27]/10 transition-all"></select>
+                    </div>
+                    <div>
+                        <label class="block text-stone-500 font-bold mb-1.5">对阵选手 B (右)</label>
+                        <select id="setup-player-B" class="w-full bg-[#FAF8F5] border border-[#EDE9E0] rounded-xl px-3 py-2.5 text-[#B34E3E] font-black focus:outline-none focus:ring-2 focus:ring-[#C59B27]/10 transition-all"></select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-stone-500 font-bold mb-1.5">赛制</label>
+                    <select id="setup-format" class="w-full bg-[#FAF8F5] border border-[#EDE9E0] rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#C59B27]/10 transition-all font-semibold text-stone-800">
+                        <option value="1">单局定胜负</option>
+                        <option value="3">三局两胜</option>
+                        <option value="5">五局三胜</option>
+                    </select>
+                </div>
+
+                <div class="flex gap-2 justify-end pt-3">
+                    <button onclick="closeSetupModal()" class="bg-[#EDE9E0]/60 hover:bg-[#EDE9E0] text-stone-600 px-4.5 py-2.5 rounded-xl font-bold transition-all active:scale-95">返回</button>
+                    <button onclick="confirmSetupMatch()" class="bg-[#C59B27] hover:bg-[#B28A20] text-white px-5.5 py-2.5 rounded-xl font-extrabold transition-all active:scale-95 shadow-md">启动对局</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗：删除战绩安全确认 -->
+    <div id="delete-confirm-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-[#FAF8F5] border border-[#B34E3E]/20 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl text-xs transition-all">
+            <div class="text-3xl mb-3">🗑️</div>
+            <h3 class="text-sm font-black text-stone-800 mb-1 kaisei-title">确定要抹除此条战绩吗？</h3>
+            <p class="text-[#8E8A81] font-bold mb-6">此操作不可恢复，删除后双方的历史大局战况将失效。</p>
+            <div class="flex gap-2 justify-center">
+                <button onclick="closeDeleteModal()" class="bg-[#EDE9E0]/60 hover:bg-[#EDE9E0] text-stone-600 px-5 py-3 rounded-xl font-bold transition-all active:scale-95">取消</button>
+                <button id="btn-confirm-delete" class="bg-[#B34E3E] hover:bg-[#C85A4A] text-white px-5 py-3 rounded-xl font-extrabold transition-all active:scale-95 shadow-md">确定删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗：网络冲突 (V2 核心) -->
+    <div id="sync-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-[#FAF8F5] border border-[#EDE9E0] rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl text-xs transition-all">
+            <div class="text-3xl mb-3">🔄</div>
+            <h3 class="text-sm font-black text-[#C59B27] mb-1.5 kaisei-title">网络已恢复！数据如何同步</h3>
+            <p class="text-[#8E8A81] font-bold mb-6">检测到离线暂存的数据，请选择合并方式：</p>
+            <div class="flex gap-2 justify-center">
+                <button onclick="closeSyncModal(false)" class="bg-[#EDE9E0]/60 hover:bg-[#EDE9E0] text-stone-600 px-4.5 py-3 rounded-xl font-bold transition-all active:scale-95">保持本地独立</button>
+                <button onclick="closeSyncModal(true)" class="bg-[#4A6044] hover:bg-[#3C4E37] text-white px-4.5 py-3 rounded-xl font-extrabold transition-all active:scale-95 shadow-md">覆写上传云端</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗：离线无法同步警告 -->
+    <div id="save-error-modal" class="fixed inset-0 bg-stone-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-[#FAF8F5] border border-[#B34E3E]/30 rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl text-xs transition-all">
+            <div class="text-3xl mb-3">📡</div>
+            <h3 class="text-sm font-black text-[#B34E3E] mb-1.5 kaisei-title">暂无法连接云数据库</h3>
+            <p class="text-[#8E8A81] font-bold mb-6">目前体育馆信号中断。成绩已安全保存在本地。请稍后重试。</p>
+            <button onclick="retrySaveMatch()" class="w-full bg-[#B34E3E] hover:bg-[#C85A4A] text-white font-extrabold py-3 rounded-2xl transition-all shadow-md active:scale-[0.98]">🔄 重试云同步</button>
+        </div>
+    </div>
+
+    <!-- 全局提示框 -->
+    <div id="toast-error" class="fixed top-24 left-1/2 -translate-x-1/2 bg-[#B34E3E] text-white font-extrabold py-3 px-7 rounded-full shadow-[0_8px_24px_rgba(179,78,62,0.25)] border border-[#B34E3E]/20 opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2 z-50 text-xs tracking-wider">
+        ⚠️ <span>比分不能低于0！</span>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 7. 系统控制内核 (JS Pure Engine 逻辑保持绝对不变) -->
+    <!-- ========================================== -->
+    <script>
+        // 核心持久化数据集
+        let players = JSON.parse(localStorage.getItem('yh_v2_players')) || ['张小明', '李大华', '林丹丹', '李宗伟', '少儿王小二', '少儿小李'];
+        let matchHistory = JSON.parse(localStorage.getItem('yh_v2_history')) || [];
+        
+        // 运行期状态
+        let isReferee = sessionStorage.getItem('yh_v2_is_referee') === 'true';
+        let isOffline = false;
+        let selectedGroupFilter = 'all';
+
+        // 双路正在对决 Live 数据
+        // 替换为：从云端动态获取数据
+// 恢复初始数据，让功能恢复正常
+let liveMatches = [
+    {
+        id: 1001,
+        stage: '预赛',
+        group: '男子组',
+        playerA: '张小明',
+        playerB: '李大华',
+        scoreA: 0,
+        scoreB: 0,
+        server: 'A',
+        format: 3,
+        currentRound: 1,
+        roundsHistory: [],
+        secondsElapsed: 120,
+        timerInterval: null
+    },
+    {
+        id: 1002,
+        stage: '预赛',
+        group: '少儿组',
+        playerA: '少儿王小二',
+        playerB: '少儿小李',
+        scoreA: 0,
+        scoreB: 0,
+        server: 'A',
+        format: 1,
+        currentRound: 1,
+        roundsHistory: [],
+        secondsElapsed: 50,
+        timerInterval: null
+    }
+]; 
+
+        let activeSlotIndex = null;
+        let pendingSaveRecord = null;
+
+        window.onload = function() {
+            initSystem();
+        };
+
+        function initSystem() {
+            renderPlayers();
+            updateRefereeState();
+            startAllLiveTimers();
+            renderLiveCards();
+            renderHistoryBoards();
+            syncMatchesFromCloud(); 
+        }
+
+        // 手机端左右滑动指示器更新逻辑
+        function handleLiveScroll(el) {
+            const scrollLeft = el.scrollLeft;
+            const width = el.clientWidth;
+            if (width === 0) return;
+            const activeIndex = Math.round(scrollLeft / width);
+            
+            const dot0 = document.getElementById('dot-0');
+            const dot1 = document.getElementById('dot-1');
+            if(dot0 && dot1) {
+                if(activeIndex === 0) {
+                    dot0.className = "w-5 h-1.5 rounded-full bg-[#C59B27] transition-all duration-300";
+                    dot1.className = "w-1.5 h-1.5 rounded-full bg-stone-300/80 transition-all duration-300";
+                } else {
+                    dot0.className = "w-1.5 h-1.5 rounded-full bg-stone-300/80 transition-all duration-300";
+                    dot1.className = "w-5 h-1.5 rounded-full bg-[#C59B27] transition-all duration-300";
+                }
+            }
+        }
+
+        // ==========================================
+        // 选手检录及录入控制
+        // ==========================================
+        function openPlayerManagement() {
+            document.getElementById('player-modal').classList.remove('hidden');
+        }
+        function closePlayerManagement() {
+            document.getElementById('player-modal').classList.add('hidden');
+            renderDropdownOptions();
+        }
+        function renderPlayers() {
+            localStorage.setItem('yh_v2_players', JSON.stringify(players));
+            document.getElementById('player-badge-count').textContent = `${players.length}人`;
+            const container = document.getElementById('player-list-container');
+            container.innerHTML = '';
+            players.forEach((p, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-center bg-[#FAF8F5] border border-[#EDE9E0] px-3.5 py-2.5 rounded-xl transition-all';
+                row.innerHTML = `
+                    <span class="font-extrabold text-stone-800">${p}</span>
+                    <button onclick="removePlayer(${idx})" class="text-[#B34E3E] font-extrabold hover:text-red-500 text-sm">✕</button>
+                `;
+                container.appendChild(row);
+            });
+            renderDropdownOptions();
+        }
+        function addPlayer() {
+            const input = document.getElementById('input-player-name');
+            const name = input.value.trim();
+            if(!name) return;
+            if(players.includes(name)) {
+                showToast("该选手已录入！");
+                return;
+            }
+            players.push(name);
+            input.value = '';
+            renderPlayers();
+        }
+        function removePlayer(idx) {
+            players.splice(idx, 1);
+            renderPlayers();
+        }
+        function renderDropdownOptions() {
+            const dpA = document.getElementById('setup-player-A');
+            const dpB = document.getElementById('setup-player-B');
+            dpA.innerHTML = ''; dpB.innerHTML = '';
+            players.forEach((p, idx) => {
+                const optA = document.createElement('option');
+                optA.value = p; optA.textContent = p;
+                dpA.appendChild(optA);
+
+                const optB = document.createElement('option');
+                optB.value = p; optB.textContent = p;
+                if(idx === 1) optB.selected = true;
+                dpB.appendChild(optB);
+            });
+        }
+
+        // ==========================================
+        // 裁判验证登录
+        // ==========================================
+        function openLoginModal() {
+            document.getElementById('referee-password').value = '';
+            document.getElementById('login-err-msg').classList.add('hidden');
+            document.getElementById('login-modal').classList.remove('hidden');
+        }
+        function closeLoginModal() {
+            document.getElementById('login-modal').classList.add('hidden');
+        }
+        function verifyReferee() {
+            const pw = document.getElementById('referee-password').value;
+            if(pw === '2607') {
+                isReferee = true;
+                sessionStorage.setItem('yh_v2_is_referee', 'true');
+                updateRefereeState();
+                closeLoginModal();
+            } else {
+                document.getElementById('login-err-msg').classList.remove('hidden');
+            }
+        }
+        function logoutReferee() {
+            isReferee = false;
+            sessionStorage.setItem('yh_v2_is_referee', 'false');
+            updateRefereeState();
+        }
+        function updateRefereeState() {
+            const badge = document.getElementById('referee-badge');
+            const btnLogin = document.getElementById('btn-login-trigger');
+            const btnLogout = document.getElementById('btn-logout-trigger');
+            const btnPlayer = document.getElementById('btn-global-player');
+            const refereeCtrls = document.querySelectorAll('.referee-ctrl');
+
+            if(isReferee) {
+                badge.classList.remove('hidden');
+                btnLogin.classList.add('hidden');
+                btnLogout.classList.remove('hidden');
+                btnPlayer.classList.remove('hidden');
+                refereeCtrls.forEach(el => el.classList.remove('hidden'));
+            } else {
+                badge.classList.add('hidden');
+                btnLogin.classList.remove('hidden');
+                btnLogout.classList.add('hidden');
+                btnPlayer.classList.add('hidden');
+                refereeCtrls.forEach(el => el.classList.add('hidden'));
+            }
+            renderHistoryBoards();
+        }
+
+        // ==========================================
+        // 赛事组别筛选过滤
+        // ==========================================
+        function filterGroup(group) {
+            selectedGroupFilter = group;
+            const tabs = {
+                'all': 'tab-all',
+                '男子组': 'tab-men',
+                '女子组': 'tab-women',
+                '少儿组': 'tab-kids'
+            };
+            Object.keys(tabs).forEach(k => {
+                const el = document.getElementById(tabs[k]);
+                if(k === group) {
+                    el.className = "shrink-0 flex-1 py-2 px-4 text-xs font-bold rounded-xl transition-all bg-[#C59B27] text-white shadow-[0_4px_12px_rgba(197,155,39,0.25)]";
+                } else {
+                    el.className = "shrink-0 flex-1 py-2 px-4 text-xs font-semibold rounded-xl text-[#7E7970] hover:text-[#211F1D] hover:bg-[#EDE9E0]/40 transition-all";
+                }
+            });
+
+            renderLiveCards();
+            renderHistoryBoards();
+        }
+
+        // ==========================================
+        // 赛事计时器与大厅卡片渲染
+        // ==========================================
+        function startAllLiveTimers() {
+            liveMatches.forEach((m, idx) => {
+                if(m.timerInterval) clearInterval(m.timerInterval);
+                m.timerInterval = setInterval(() => {
+                    m.secondsElapsed++;
+                    updateLiveTimerUI(idx);
+                }, 1000);
+            });
+        }
+        function updateLiveTimerUI(slotIdx) {
+            const m = liveMatches[slotIdx];
+            const mins = String(Math.floor(m.secondsElapsed / 60)).padStart(2, '0');
+            const secs = String(m.secondsElapsed % 60).padStart(2, '0');
+            const formatted = `${mins}:${secs}`;
+            
+            const timerEl = document.getElementById(`live-timer-${slotIdx}`);
+            if(timerEl) timerEl.textContent = formatted;
+            
+            if(activeSlotIndex === slotIdx) {
+                const fsTimer = document.getElementById('fs-timer');
+                if(fsTimer) fsTimer.textContent = formatted;
+            }
+        }
+        function renderLiveCards() {
+            liveMatches.forEach((m, idx) => {
+                const card = document.getElementById(`live-card-${idx}`);
+                
+                if(selectedGroupFilter !== 'all' && m.group !== selectedGroupFilter) {
+                    card.classList.add('opacity-30', 'pointer-events-none');
+                } else {
+                    card.classList.remove('opacity-30', 'pointer-events-none');
+                }
+
+                document.getElementById(`live-group-badge-${idx}`).textContent = `${m.group}${m.stage}`;
+                document.getElementById(`live-name-${idx}-A`).textContent = m.playerA;
+                document.getElementById(`live-name-${idx}-B`).textContent = m.playerB;
+                document.getElementById(`live-avatar-${idx}-A`).textContent = m.playerA;
+                document.getElementById(`live-avatar-${idx}-B`).textContent = m.playerB;
+                document.getElementById(`live-score-${idx}-A`).textContent = m.scoreA;
+                document.getElementById(`live-score-${idx}-B`).textContent = m.scoreB;
+
+                if(m.server === 'A') {
+                    document.getElementById(`live-serve-${idx}-A`).classList.remove('hidden');
+                    document.getElementById(`live-serve-${idx}-B`).classList.add('hidden');
+                } else {
+                    document.getElementById(`live-serve-${idx}-A`).classList.add('hidden');
+                    document.getElementById(`live-serve-${idx}-B`).classList.remove('hidden');
+                }
+
+                const progContainer = document.getElementById(`live-progress-${idx}`);
+                progContainer.innerHTML = '';
+                if(m.format > 1) {
+                    for(let i=0; i < m.format; i++) {
+                        const span = document.createElement('span');
+                        if(m.roundsHistory[i]) {
+                            span.textContent = m.roundsHistory[i].winner === 'A' ? '👑' : '⚫';
+                        } else {
+                            span.textContent = '◯';
+                        }
+                        progContainer.appendChild(span);
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 执裁开赛配置通道
+        // ==========================================
+        let currentSetupSlotIdx = null;
+        function openSetupModal(slotIdx) {
+            currentSetupSlotIdx = slotIdx;
+            const m = liveMatches[slotIdx];
+            document.getElementById('setup-stage').value = m.stage;
+            document.getElementById('setup-group').value = m.group;
+            document.getElementById('setup-format').value = m.format;
+            document.getElementById('setup-player-A').value = m.playerA;
+            document.getElementById('setup-player-B').value = m.playerB;
+            document.getElementById('setup-modal').classList.remove('hidden');
+        }
+        function closeSetupModal() {
+            document.getElementById('setup-modal').classList.add('hidden');
+            currentSetupSlotIdx = null;
+        }
+        function confirmSetupMatch() {
+            const idx = currentSetupSlotIdx;
+            const playerA = document.getElementById('setup-player-A').value;
+            const playerB = document.getElementById('setup-player-B').value;
+            
+            if(playerA === playerB) {
+                alert("对局选手不能是同一个人！");
+                return;
+            }
+
+            liveMatches[idx] = {
+                id: Date.now(),
+                stage: document.getElementById('setup-stage').value,
+                group: document.getElementById('setup-group').value,
+                playerA: playerA,
+                playerB: playerB,
+                scoreA: 0,
+                scoreB: 0,
+                server: 'A',
+                format: parseInt(document.getElementById('setup-format').value),
+                currentRound: 1,
+                roundsHistory: [],
+                secondsElapsed: 0,
+                timerInterval: null
+            };
+
+            closeSetupModal();
+            startAllLiveTimers();
+            renderLiveCards();
+        }
+
+        // ==========================================
+        // 全屏双层世界：执裁 vs 观看
+        // ==========================================
+        function launchMatchView(slotIdx) {
+            activeSlotIndex = slotIdx;
+            const m = liveMatches[slotIdx];
+
+            document.getElementById('fs-name-A').textContent = m.playerA;
+            document.getElementById('fs-name-B').textContent = m.playerB;
+            syncFsScoreUI();
+
+            const badge = document.getElementById('fs-badge');
+            const fsBtnGroups = document.querySelectorAll('.referee-btn-group');
+            const exitBtn = document.getElementById('fs-exit-btn');
+
+            if(isReferee) {
+                badge.textContent = `● 正在执裁 (${m.group}${m.stage})`;
+                badge.className = "bg-[#B34E3E]/10 text-[#E38F80] text-[10px] md:text-xs px-4 py-1.5 rounded-full border border-[#B34E3E]/20 font-extrabold tracking-wider";
+                fsBtnGroups.forEach(btn => btn.classList.remove('hidden'));
+                exitBtn.textContent = "返回大厅";
+                adjustFsFooterButtons();
+            } else {
+                badge.textContent = `📺 专注观看 (${m.group}${m.stage})`;
+                badge.className = "bg-[#3D5467]/10 text-[#6FA0C7] text-[10px] md:text-xs px-4 py-1.5 rounded-full border border-[#3D5467]/20 font-extrabold tracking-wider";
+                fsBtnGroups.forEach(btn => btn.classList.add('hidden'));
+                exitBtn.textContent = "退出大厅";
+            }
+
+            document.getElementById('full-scoreboard').classList.remove('hidden');
+        }
+
+        function exitMatchView() {
+            document.getElementById('full-scoreboard').classList.add('hidden');
+            activeSlotIndex = null;
+            renderLiveCards();
+        }
+
+        // ==========================================
+        // 核心加减分操作
+        // ==========================================
+        function syncFsScoreUI() {
+            if(activeSlotIndex === null) return;
+            const m = liveMatches[activeSlotIndex];
+            document.getElementById('super-score-A').textContent = m.scoreA;
+            document.getElementById('super-score-B').textContent = m.scoreB;
+
+            if(m.server === 'A') {
+                document.getElementById('fs-serve-icon-A').classList.remove('hidden');
+                document.getElementById('fs-serve-icon-B').classList.add('hidden');
+            } else {
+                document.getElementById('fs-serve-icon-A').classList.add('hidden');
+                document.getElementById('fs-serve-icon-B').classList.remove('hidden');
+            }
+
+            const fsProgA = document.getElementById('fs-progress-A');
+            const fsProgB = document.getElementById('fs-progress-B');
+            fsProgA.innerHTML = ''; fsProgB.innerHTML = '';
+            
+            if(m.format > 1) {
+                for(let i=0; i<m.format; i++) {
+                    const spanA = document.createElement('span');
+                    const spanB = document.createElement('span');
+                    if(m.roundsHistory[i]) {
+                        spanA.textContent = m.roundsHistory[i].winner === 'A' ? '👑' : '⚫';
+                        spanB.textContent = m.roundsHistory[i].winner === 'B' ? '👑' : '⚫';
+                    } else {
+                        spanA.textContent = '◯';
+                        spanB.textContent = '◯';
+                    }
+                    fsProgA.appendChild(spanA);
+                    fsProgB.appendChild(spanB);
+                }
+            }
+        }
+
+        function handleServeToggle(player) {
+            if(!isReferee || activeSlotIndex === null) return;
+            liveMatches[activeSlotIndex].server = player;
+            syncFsScoreUI();
+        }
+
+       function adjustMatchScore(player, delta) {
+           if(!isReferee || activeSlotIndex === null) return;
+           const m = liveMatches[activeSlotIndex];
+           const currentScore = player === 'A'? m.scoreA :m.scoreB;
+           const pane = document.getElementById (`pane-${player}`) ;
+
+            if(currentScore + delta < 0) {
+                pane.classList.add('shake-active');
+                showToast("比分不能低于 0 噢！");
+                setTimeout(() => pane.classList.remove('shake-active'), 400);
+                return;
+            }
+
+            if(player === 'A') {
+                m.scoreA += delta;
+            } else {
+                m.scoreB += delta;
+            }
+supabase.from('match_state').update({ score_a: m.scoreA }).eq('id', m.id);
+            syncFsScoreUI();
+        }
+
+        function adjustFsFooterButtons() {
+            if(activeSlotIndex === null) return;
+            const m = liveMatches[activeSlotIndex];
+            const btnEnd = document.getElementById('btn-end-round');
+            const btnNext = document.getElementById('btn-next-round');
+            const btnSubmit = document.getElementById('btn-submit-match');
+
+            btnEnd.textContent = `确认并结束当前局 (第 ${m.currentRound} 局)`;
+
+            const targetWins = Math.ceil(m.format / 2);
+            const winsA = m.roundsHistory.filter(r => r.winner === 'A').length;
+            const winsB = m.roundsHistory.filter(r => r.winner === 'B').length;
+
+            if(winsA === targetWins || winsB === targetWins || m.roundsHistory.length === m.format) {
+                btnEnd.classList.add('hidden');
+                btnNext.classList.add('hidden');
+                btnSubmit.classList.remove('hidden');
+            } else {
+                btnEnd.classList.remove('hidden');
+                btnNext.classList.add('hidden');
+                btnSubmit.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        // 结束当前局
+        // ==========================================
+        function endRoundAction() {
+            if(activeSlotIndex === null) return;
+            const m = liveMatches[activeSlotIndex];
+            
+            if(m.scoreA === m.scoreB) {
+                showToast("平分无法结束此局，须裁决出胜负！");
+                return;
+            }
+
+            const rWinner = m.scoreA > m.scoreB ? 'A' : 'B';
+            const winnerName = rWinner === 'A' ? m.playerA : m.playerB;
+
+            m.roundsHistory.push({
+                winner: rWinner,
+                scoreA: m.scoreA,
+                scoreB: m.scoreB
+            });
+
+            syncFsScoreUI();
+            alert(`第 ${m.currentRound} 局终：恭喜选手 【${winnerName}】。`);
+
+            const targetWins = Math.ceil(m.format / 2);
+            const winsA = m.roundsHistory.filter(r => r.winner === 'A').length;
+            const winsB = m.roundsHistory.filter(r => r.winner === 'B').length;
+
+            if(winsA === targetWins || winsB === targetWins || m.currentRound === m.format) {
+                document.getElementById('btn-end-round').classList.add('hidden');
+                document.getElementById('btn-submit-match').classList.remove('hidden');
+            } else {
+                document.getElementById('btn-end-round').classList.add('hidden');
+                document.getElementById('btn-next-round').classList.remove('hidden');
+            }
+        }
+
+        function startNextRoundAction() {
+            if(activeSlotIndex === null) return;
+            const m = liveMatches[activeSlotIndex];
+            m.currentRound++;
+            m.scoreA = 0; m.scoreB = 0;
+            m.server = 'A';
+            syncFsScoreUI();
+            
+            document.getElementById('btn-end-round').classList.remove('hidden');
+            document.getElementById('btn-next-round').classList.add('hidden');
+            adjustFsFooterButtons();
+        }
+
+        function submitMatchAction() {
+            if(activeSlotIndex === null) return;
+            const m = liveMatches[activeSlotIndex];
+
+            if(m.format === 1) {
+                if(m.scoreA === m.scoreB) {
+                    showToast("双方处于平分！");
+                    return;
+                }
+                m.roundsHistory.push({
+                    winner: m.scoreA > m.scoreB ? 'A' : 'B',
+                    scoreA: m.scoreA,
+                    scoreB: m.scoreB
+                });
+            }
+
+            const winsA = m.roundsHistory.filter(r => r.winner === 'A').length;
+            const winsB = m.roundsHistory.filter(r => r.winner === 'B').length;
+            const winnerName = winsA > winsB ? m.playerA : m.playerB;
+
+            const finalRecord = {
+                id: Date.now(),
+                group: m.group,
+                stage: m.stage,
+                playerA: m.playerA,
+                playerB: m.playerB,
+                rounds: m.roundsHistory,
+                winner: winnerName,
+                time: document.getElementById('fs-timer').textContent
+            };
+
+            if(isOffline) {
+                pendingSaveRecord = finalRecord;
+                document.getElementById('save-error-modal').classList.remove('hidden');
+            } else {
+                commitRecordToHistory(finalRecord);
+                resetLiveCardSlot(activeSlotIndex);
+                exitMatchView();
+            }
+        }
+
+        function commitRecordToHistory(record) {
+            matchHistory.unshift(record);
+            localStorage.setItem('yh_v2_history', JSON.stringify(matchHistory));
+            renderHistoryBoards();
+        }
+
+        function retrySaveMatch() {
+            if(pendingSaveRecord) {
+                if(isOffline) {
+                    alert("📡 断网警告：网络依然处于离线状态！");
+                } else {
+                    commitRecordToHistory(pendingSaveRecord);
+                    resetLiveCardSlot(activeSlotIndex);
+                    pendingSaveRecord = null;
+                    document.getElementById('save-error-modal').classList.add('hidden');
+                    exitMatchView();
+                }
+            }
+        }
+
+        function abortCurrentMatch() {
+            if(confirm("确定退出当前执裁吗？本局的数据将被安全废弃。")) {
+                resetLiveCardSlot(activeSlotIndex);
+                exitMatchView();
+            }
+        }
+
+        function resetLiveCardSlot(slotIdx) {
+            liveMatches[slotIdx] = {
+                id: Date.now(),
+                stage: '预赛',
+                group: liveMatches[slotIdx].group,
+                playerA: '选手A',
+                playerB: '选手B',
+                scoreA: 0,
+                scoreB: 0,
+                server: 'A',
+                format: 3,
+                currentRound: 1,
+                roundsHistory: [],
+                secondsElapsed: 0,
+                timerInterval: null
+            };
+            startAllLiveTimers();
+            renderLiveCards();
+        }
+
+        // ==========================================
+        // 历史胜负纪录板渲染
+        // ==========================================
+        function renderHistoryBoards() {
+            const prelimBody = document.getElementById('prelim-table-body');
+            const finalsBody = document.getElementById('finals-table-body');
+            prelimBody.innerHTML = '';
+            finalsBody.innerHTML = '';
+
+            const filteredRecords = matchHistory.filter(m => {
+                if(selectedGroupFilter === 'all') return true;
+                return m.group === selectedGroupFilter;
+            });
+
+            const prelimRecords = filteredRecords.filter(m => m.stage === '预赛');
+            const finalsRecords = filteredRecords.filter(m => m.stage === '决赛');
+
+            if(prelimRecords.length === 0) {
+                prelimBody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-stone-400 font-bold">暂无对局战果记录</td></tr>`;
+            } else {
+                prelimRecords.forEach(r => renderRow(r, prelimBody));
+            }
+
+            if(finalsRecords.length === 0) {
+                finalsBody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-stone-400 font-bold">暂无对局战果记录</td></tr>`;
+            } else {
+                finalsRecords.forEach(r => renderRow(r, finalsBody));
+            }
+
+            const ctrls = document.querySelectorAll('.referee-ctrl');
+            ctrls.forEach(el => {
+                if(isReferee) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+        }
+
+        function renderRow(m, targetBody) {
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-[#EDE9E0]/30 text-stone-700 font-semibold text-xs transition-all";
+            
+            const scoresText = m.rounds.map(r => `${r.scoreA}:${r.scoreB}`).join(' | ');
+
+            tr.innerHTML = `
+                <td class="py-4 font-black text-[#8E8A81]">${m.group}</td>
+                <td class="py-4">
+                    <span class="${m.winner === m.playerA ? 'text-[#C59B27] font-black' : 'font-semibold'}">${m.playerA}</span>
+                    <span class="text-stone-300 mx-1 font-light">vs</span>
+                    <span class="${m.winner === m.playerB ? 'text-[#C59B27] font-black' : 'font-semibold'}">${m.playerB}</span>
+                    <div class="text-[9px] text-[#8E8A81] font-bold mt-1 tracking-wider">⏱️ 用时 ${m.time}</div>
+                </td>
+                <td class="py-4 text-center font-mono font-bold text-[#C59B27] tracking-tight">${scoresText}</td>
+                <td class="py-4 text-right font-black text-[#4A6044]">👑 ${m.winner}</td>
+                <td class="py-4 text-center referee-ctrl ${isReferee ? '' : 'hidden'}">
+                    <button onclick="requestDeleteRecord(${m.id})" class="text-[#B34E3E] hover:text-red-500 px-2 py-1 rounded-xl hover:bg-[#B34E3E]/10 transition-all font-black text-xs">
+                        🗑️
+                    </button>
+                </td>
+            `;
+            targetBody.appendChild(tr);
+        }
+
+        // ==========================================
+        // 成绩安全抹除控制
+        // ==========================================
+        let pendingDeleteRecordId = null;
+        function requestDeleteRecord(id) {
+            if(!isReferee) {
+                alert("🔒 安全验证拦截！");
+                openLoginModal();
+                return;
+            }
+            pendingDeleteRecordId = id;
+            document.getElementById('delete-confirm-modal').classList.remove('hidden');
+        }
+        function closeDeleteModal() {
+            pendingDeleteRecordId = null;
+            document.getElementById('delete-confirm-modal').classList.add('hidden');
+        }
+        function confirmDeleteMatch() {
+            if(pendingDeleteRecordId) {
+                matchHistory = matchHistory.filter(m => m.id !== pendingDeleteRecordId);
+                localStorage.setItem('yh_v2_history', JSON.stringify(matchHistory));
+                renderHistoryBoards();
+                closeDeleteModal();
+            }
+        }
+        document.getElementById('btn-confirm-delete').onclick = confirmDeleteMatch;
+
+        // ==========================================
+        // 模拟在线/离线双通道自愈
+        // ==========================================
+        function toggleNetwork() {
+            isOffline = !isOffline;
+            const btn = document.getElementById('network-btn');
+            if(isOffline) {
+                btn.className = "text-xs bg-[#B34E3E]/10 text-[#B34E3E] px-3.5 py-2 rounded-xl border border-[#B34E3E]/20 flex items-center gap-1.5 font-bold transition-all shadow-sm";
+                btn.innerHTML = "🚫 模拟离线";
+            } else {
+                btn.className = "text-xs bg-[#4A6044]/5 text-[#4A6044] px-3.5 py-2 rounded-xl border border-[#4A6044]/10 flex items-center gap-1.5 font-bold transition-all shadow-sm";
+                btn.innerHTML = "🛜 模拟在线";
+                document.getElementById('sync-modal').classList.remove('hidden');
+            }
+        }
+
+        function closeSyncModal(uploadOverride) {
+            document.getElementById('sync-modal').classList.add('hidden');
+            if(uploadOverride) {
+                alert("本地离线数据已全部安全合并并覆盖云端服务器。");
+            } else {
+                alert("数据已挂起，保持本地离线缓存状态。");
+            }
+        }
+
+        function showToast(msg) {
+            const el = document.getElementById('toast-error');
+            el.querySelector('span').textContent = msg;
+            el.style.opacity = '1';
+            setTimeout(() => el.style.opacity = '0', 2500);
+        }
+// --- Supabase 实时联动安全接入 ---
+
+// 1. 启动时从云端同步一次
+async function syncMatchesFromCloud() {
+    const { data, error } = await supabase.from('match_state').select('*');
+    if (data && data.length > 0) {
+        liveMatches = data;
+        renderLiveCards(); // 立即刷新大屏画面
+    }
+}
+
+// 2. 建立实时监听（这是实现实时联动的核心）
+supabase.channel('public:match_state')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'match_state' }, payload => {
+        console.log('检测到数据库变更，同步更新中...');
+        syncMatchesFromCloud(); // 数据库一变，前端立刻自动更新
+    })
+    .subscribe();
+
+// 3. 在系统初始化时执行同步
+// 请把这一行加到你原本的 initSystem() 函数的最后面
+// 或者直接在这里调用一下
+syncMatchesFromCloud();
+    </script>
+</body>
+</html>
