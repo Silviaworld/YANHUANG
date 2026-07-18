@@ -1100,27 +1100,22 @@ let liveMatches = [
         }
 
        function adjustMatchScore(player, delta) {
-           if(!isReferee || activeSlotIndex === null) return;
-           const m = liveMatches[activeSlotIndex];
-           const currentScore = player === 'A'? m.scoreA :m.scoreB;
-           const pane = document.getElementById (`pane-${player}`) ;
+    const m = liveMatches[activeSlotIndex];
+    if (!m) return;
 
-            if(currentScore + delta < 0) {
-                pane.classList.add('shake-active');
-                showToast("比分不能低于 0 噢！");
-                setTimeout(() => pane.classList.remove('shake-active'), 400);
-                return;
-            }
+    if (player === 'A') {
+        m.scoreA = Math.max(0, (m.scoreA || 0) + delta);
+    } else {
+        m.scoreB = Math.max(0, (m.scoreB || 0) + delta);
+    }
 
-            if(player === 'A') {
-                m.scoreA += delta;
-            } else {
-                m.scoreB += delta;
-            }
-supabase.from('match_state').update({ score_a: m.scoreA }).eq('id', m.id);
+    supabase.from('match_state')
+        .update({ score_a: m.scoreA, score_b: m.scoreB })
+        .eq('id', m.id)
+        .then(() => {
             syncFsScoreUI();
-        }
-
+        });
+}
         function adjustFsFooterButtons() {
             if(activeSlotIndex === null) return;
             const m = liveMatches[activeSlotIndex];
