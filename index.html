@@ -1409,14 +1409,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 <td class="py-4 text-center font-mono font-bold text-[#C59B27] tracking-tight">${scoresText}</td>
                 <td class="py-4 text-right font-black text-[#4A6044]">👑 ${m.winner}</td>
                 <td class="py-4 text-center referee-ctrl ${isReferee ? '' : 'hidden'}">
-                    <button onclick="requestDeleteRecord(${m.id})" class="text-[#B34E3E] hover:text-red-500 px-2 py-1 rounded-xl hover:bg-[#B34E3E]/10 transition-all font-black text-xs">
+                    <button type="button" onclick="requestDeleteRecord(${m.id})" class="text-[#B34E3E] hover:text-red-500 px-2 py-1 rounded-xl hover:bg-[#B34E3E]/10 transition-all font-black text-xs">
                         🗑️
                     </button>
                 </td>
             `;
             targetBody.appendChild(tr);
         }
-
         // ==========================================
         // 成绩安全抹除控制
         // ==========================================
