@@ -1060,7 +1060,7 @@ let liveMatches = [
             document.getElementById('setup-modal').classList.add('hidden');
             currentSetupSlotIdx = null;
         }
-         function confirmSetupMatch() {
+               function confirmSetupMatch() {
             const idx = currentSetupSlotIdx;
             const playerA = document.getElementById('setup-player-A').value;
             const playerB = document.getElementById('setup-player-B').value;
@@ -1071,7 +1071,7 @@ let liveMatches = [
             }
 
             liveMatches[idx] = {
-                id: idx + 1, // 【关键修复】固定为 1 和 2，放弃 Date.now()
+                id: idx + 1, // 固定为 1 和 2
                 stage: document.getElementById('setup-stage').value,
                 group: document.getElementById('setup-group').value,
                 playerA: playerA,
@@ -1086,14 +1086,20 @@ let liveMatches = [
                 timerInterval: null
             };
             
-            // 开赛时，云端分数同步清零
-            window.supabase.from('match_state').update({ score_a: 0, score_b: 0 }).eq('id', idx + 1).then();
+            // 【核心修复】：开赛/保存配置时，把新名字、组别以及清零的分数一起同步到云端！
+            window.supabase.from('match_state').update({ 
+                score_a: 0, 
+                score_b: 0,
+                player_a: playerA,
+                player_b: playerB
+            }).eq('id', idx + 1).then(() => {
+                console.log(`第 ${idx + 1} 组比赛配置及选手名字已同步至云端`);
+            });
 
             closeSetupModal();
             startAllLiveTimers();
             renderLiveCards();
         }
-
 
         // ==========================================
         // 全屏双层世界：执裁 vs 观看
