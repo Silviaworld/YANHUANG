@@ -1108,7 +1108,7 @@ let liveMatches = [
             syncFsScoreUI();
         }
 
-        function adjustMatchScore(player, delta) {
+         function adjustMatchScore(player, delta) {
             const m = liveMatches[activeSlotIndex];
             if (!m) return;
 
@@ -1118,14 +1118,21 @@ let liveMatches = [
                 m.scoreB = Math.max(0, (m.scoreB || 0) + delta);
             }
 
-            // 【关键修复】确保调用 window.supabase 且列名下划线正确
+            // 【提速核心】：先不管网络好不好，瞬间把裁判本地手机屏幕的分数改掉！
+            syncFsScoreUI();
+
+            // 然后在后台静默把数据推给云端，大屏幕会通过上面的 WebSocket 自动同步
             window.supabase.from('match_state')
                 .update({ score_a: m.scoreA, score_b: m.scoreB })
                 .eq('id', m.id)
                 .then(() => {
-                    syncFsScoreUI();
+                    console.log('云端分数已静默同步完成');
+                })
+                .catch(err => {
+                    console.error('云端同步失败，可能处于弱网环境:', err);
                 });
         }
+
         function adjustFsFooterButtons() {
             if(activeSlotIndex === null) return;
             const m = liveMatches[activeSlotIndex];
@@ -1428,11 +1435,24 @@ async function syncMatchesFromCloud() {
     }
 }
 
-// 2. 建立实时监听（这是实现实时联动的核心）
+// 2. 建立实时监听（极速截获版）
 window.supabase.channel('public:match_state')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'match_state' }, payload => {
-        console.log('检测到数据库变更，同步更新中...');
-        syncMatchesFromCloud(); // 数据库一变，前端立刻自动更新
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'match_state' }, payload => {
+        console.log('检测到数据库变更，直接应用新数据:', payload.new);
+        
+        // 直接拿到推送过来的最新这行数据
+        const dbRow = payload.new;
+        
+        // 找到本地对应的比赛卡片，直接修改分数
+        let localMatch = liveMatches.find(m => m.id === dbRow.id);
+        if (localMatch) {
+            localMatch.scoreA = dbRow.score_a;
+            localMatch.scoreB = dbRow.score_b;
+        }
+        
+        // 刷新界面
+        renderLiveCards(); 
+        if (typeof syncFsScoreUI === 'function') syncFsScoreUI();
     })
     .subscribe();
 
