@@ -1434,14 +1434,30 @@ window.addEventListener('DOMContentLoaded', () => {
             pendingDeleteRecordId = null;
             document.getElementById('delete-confirm-modal').classList.add('hidden');
         }
-        function confirmDeleteMatch() {
-            if(pendingDeleteRecordId) {
-                matchHistory = matchHistory.filter(m => m.id !== pendingDeleteRecordId);
-                localStorage.setItem('yh_v2_history', JSON.stringify(matchHistory));
-                renderHistoryBoards();
-                closeDeleteModal();
-            }
+async function confirmDeleteMatch() {
+    if (pendingDeleteRecordId) {
+        // 1. 同步从 Supabase 的 matches 表中彻底删除该条数据
+        const { error } = await window.supabase
+            .from('matches')
+            .delete()
+            .eq('id', pendingDeleteRecordId);
+
+        if (error) {
+            console.error("❌ 云端删除失败:", error.message);
+            alert("删除失败，请检查网络或权限");
+            return;
         }
+
+        // 2. 本地缓存与渲染更新
+        matchHistory = matchHistory.filter(m => m.id !== pendingDeleteRecordId);
+        localStorage.setItem('yh_v2_history', JSON.stringify(matchHistory));
+        renderHistoryBoards();
+        
+        // 3. 关闭弹窗
+        closeDeleteModal();
+        console.log("✅ 成功从云端和本地删除了战绩记录:", pendingDeleteRecordId);
+    }
+}
         document.getElementById('btn-confirm-delete').onclick = confirmDeleteMatch;
 
         // ==========================================
@@ -1516,27 +1532,33 @@ window.supabase.channel('public:match_state')
     })
     .subscribe();
 
-        // 3. 实时监听 matches 表的新增战果（👉 贴在这儿）
-        window.supabase.channel('public:matches')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches' }, payload => {
-                console.log('检测到有新比赛完赛，正在同步胜负榜:', payload.new);
-                const row = payload.new;
-
-                const newRecord = {
-                    id: row.id,
-                    group: row.group || row.court_number,
-                    stage: row.stage || '预赛',
-                    playerA: row.player1_name,
-                    playerB: row.player2_name,
-                    rounds: row.rounds_data || [{ scoreA: row.score1, scoreB: row.score2 }],
-                    winner: row.winner,
-                    time: row.match_time || '00:00'
-                };
-
-                matchHistory.unshift(newRecord);
-                renderHistoryBoards();
-            })
-            .subscribe();
+       // 实时监听 matches 表的新增与删除
+window.supabase.channel('public:matches-sync')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches' }, payload => {
+        const row = payload.new;
+        const newRecord = {
+            id: row.id,
+            group: row.group || row.court_number,
+            stage: row.stage || '预赛',
+            playerA: row.player1_name,
+            playerB: row.player2_name,
+            rounds: row.rounds_data || [{ scoreA: row.score1, scoreB: row.score2 }],
+            winner: row.winner,
+            time: row.match_time || '00:00'
+        };
+        // 避免重复添加
+        if (!matchHistory.some(m => m.id === newRecord.id)) {
+            matchHistory.unshift(newRecord);
+            renderHistoryBoards();
+        }
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'matches' }, payload => {
+        console.log('检测到有战绩被删除:', payload.old.id);
+        // 从本地列表中移除被删除的项
+        matchHistory = matchHistory.filter(m => m.id !== payload.old.id);
+        renderHistoryBoards();
+    })
+    .subscribe();
 // 4. 在系统初始化时执行同步
 // 请把这一行加到你原本的 initSystem() 函数的最后面
 // 或者直接在这里调用一下
