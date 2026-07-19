@@ -775,50 +775,117 @@ let liveMatches = [
         }
 
         // ==========================================
-        // 选手检录及录入控制
+        // 选手检录及录入控制（Supabase 云端多端同步版）
         // ==========================================
         function openPlayerManagement() {
             document.getElementById('player-modal').classList.remove('hidden');
+            fetchPlayersFromCloud(); // 打开时主动从云端同步一次
         }
+        
         function closePlayerManagement() {
             document.getElementById('player-modal').classList.add('hidden');
             renderDropdownOptions();
         }
-        function renderPlayers() {
-            localStorage.setItem('yh_v2_players', JSON.stringify(players));
-            document.getElementById('player-badge-count').textContent = `${players.length}人`;
+
+        // 1. 从 Supabase 云端拉取选手名单
+        async function fetchPlayersFromCloud() {
+            const { data, error } = await window.supabase
+                .from('players')
+                .select('*')
+                .order('created_at', { ascending: true });
+
+            if (!error && data) {
+                players = data.map(item => item.name);
+                localStorage.setItem('yh_v2_players', JSON.stringify(players));
+            } else {
+                console.warn("⚠️ 从云端加载选手失败，使用本地缓存:", error);
+            }
+            renderPlayersUI();
+        }
+
+        // 2. 纯前端渲染 UI 界面（不再直接写死 localStorage，由云端驱动）
+        function renderPlayersUI() {
+            const countEl = document.getElementById('player-badge-count');
+            if(countEl) countEl.textContent = `${players.length}人`;
+            
             const container = document.getElementById('player-list-container');
+            if(!container) return;
             container.innerHTML = '';
-            players.forEach((p, idx) => {
+            
+            players.forEach((p) => {
                 const row = document.createElement('div');
                 row.className = 'flex justify-between items-center bg-[#FAF8F5] border border-[#EDE9E0] px-3.5 py-2.5 rounded-xl transition-all';
                 row.innerHTML = `
                     <span class="font-extrabold text-stone-800">${p}</span>
-                    <button onclick="removePlayer(${idx})" class="text-[#B34E3E] font-extrabold hover:text-red-500 text-sm">✕</button>
+                    <button onclick="removePlayerByName('${p}')" class="text-[#B34E3E] font-extrabold hover:text-red-500 text-sm cursor-pointer">✕</button>
                 `;
                 container.appendChild(row);
             });
             renderDropdownOptions();
         }
-        function addPlayer() {
+
+        // 3. 兼容旧函数名，内部走云端拉取
+        function renderPlayers() {
+            fetchPlayersFromCloud();
+        }
+
+        // 4. 添加选手（写入云端）
+        async function addPlayer() {
             const input = document.getElementById('input-player-name');
             const name = input.value.trim();
             if(!name) return;
+            
             if(players.includes(name)) {
                 showToast("该选手已录入！");
                 return;
             }
-            players.push(name);
+
+            // 写入 Supabase 的 players 表
+            const { error } = await window.supabase
+                .from('players')
+                .insert([{ name: name }]);
+
+            if (error) {
+                console.error("❌ 添加选手到云端失败:", error.message);
+                alert("添加失败，请检查网络或权限");
+                return;
+            }
+
             input.value = '';
-            renderPlayers();
+            // 写入成功后立刻从云端拉取最新列表
+            await fetchPlayersFromCloud();
         }
+
+        // 5. 根据名字删除选手（从云端删除）
+        async function removePlayerByName(name) {
+            if (!confirm(`确定要删除选手 "${name}" 吗？`)) return;
+
+            const { error } = await window.supabase
+                .from('players')
+                .delete()
+                .eq('name', name);
+
+            if (error) {
+                console.error("❌ 从云端删除选手失败:", error.message);
+                alert("删除失败，请检查网络或权限");
+                return;
+            }
+
+            // 删除成功后立刻从云端拉取最新列表
+            await fetchPlayersFromCloud();
+        }
+
+        // 兼容旧的索引删除调用
         function removePlayer(idx) {
-            players.splice(idx, 1);
-            renderPlayers();
+            const name = players[idx];
+            if(name) removePlayerByName(name);
         }
+
         function renderDropdownOptions() {
             const dpA = document.getElementById('setup-player-A');
             const dpB = document.getElementById('setup-player-B');
+            if(!dpA || !dpB) return;
+            
             dpA.innerHTML = ''; dpB.innerHTML = '';
             players.forEach((p, idx) => {
                 const optA = document.createElement('option');
@@ -831,6 +898,7 @@ let liveMatches = [
                 dpB.appendChild(optB);
             });
         }
+
 
         // ==========================================
         // 裁判验证登录
@@ -1533,8 +1601,16 @@ window.supabase.channel('public:match_state')
         if (typeof syncFsScoreUI === 'function') syncFsScoreUI();
     })
     .subscribe();
+        
+// 3. 实时监听 players 表的新增与删除（多端同步选手名单）
+window.supabase.channel('public:players-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, payload => {
+        console.log('检测到选手名单云端变更，正在同步...', payload);
+        fetchPlayersFromCloud();
+    })
+    .subscribe();
 
-       // 实时监听 matches 表的新增与删除
+       // 4.实时监听 matches 表的新增与删除
 window.supabase.channel('public:matches-sync')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches' }, payload => {
         const row = payload.new;
@@ -1561,7 +1637,7 @@ window.supabase.channel('public:matches-sync')
         renderHistoryBoards();
     })
     .subscribe();
-// 4. 在系统初始化时执行同步
+// 5. 在系统初始化时执行同步
 // 请把这一行加到你原本的 initSystem() 函数的最后面
 // 或者直接在这里调用一下
 syncMatchesFromCloud();
