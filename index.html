@@ -1246,14 +1246,47 @@ let liveMatches = [
                 resetLiveCardSlot(activeSlotIndex);
                 exitMatchView();
             }
-        }
+        }    
+   async function commitRecordToHistory(record) {
+    // 1. 保留本地缓存与界面渲染
+    matchHistory.unshift(record);
+    localStorage.setItem('yh_v2_history', JSON.stringify(matchHistory));
+    renderHistoryBoards();
 
-        function commitRecordToHistory(record) {
-            matchHistory.unshift(record);
-            localStorage.setItem('yh_v2_history', JSON.stringify(matchHistory));
-            renderHistoryBoards();
-        }
+    // 2. 提取最后一局比分（处理空数据情况）
+    const lastRound = record.rounds && record.rounds.length > 0 
+        ? record.rounds[record.rounds.length - 1] 
+        : { scoreA: 0, scoreB: 0 };
 
+    // 3. 执行数据库写入
+    try {
+        const { data, error } = await supabase
+            .from('matches')
+            .insert([
+                {
+                    court_number: record.group,        // 对应您的字段
+                    player1_name: record.playerA,      // 对应您的字段
+                    player2_name: record.playerB,      // 对应您的字段
+                    score1: lastRound.scoreA,          // 对应您的字段
+                    score2: lastRound.scoreB,          // 对应您的字段
+                    winner: record.winner,             // 对应您的字段
+                    status: 'completed',               // 标记比赛已完成
+                    group: record.group,               // 对应您的字段
+                    stage: record.stage,               // 对应您的字段
+                    rounds_data: record.rounds,        // 存入所有局次的详细 JSON
+                    match_time: record.time            // 对应您的字段
+                }
+            ]);
+
+        if (error) {
+            console.error("❌ 写入云端失败:", error.message);
+        } else {
+            console.log("✅ 战果已成功同步至云端数据库!");
+        }
+    } catch (err) {
+        console.error("数据库通信发生异常:", err);
+    }
+}
         function retrySaveMatch() {
             if(pendingSaveRecord) {
                 if(isOffline) {
