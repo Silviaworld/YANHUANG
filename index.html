@@ -707,7 +707,7 @@
 // 恢复初始数据，让功能恢复正常
 let liveMatches = [
     {
-        id: 1001,
+        id: 1,
         stage: '预赛',
         group: '男子组',
         playerA: '张小明',
@@ -722,7 +722,7 @@ let liveMatches = [
         timerInterval: null
     },
     {
-        id: 1002,
+        id: 2,
         stage: '预赛',
         group: '少儿组',
         playerA: '少儿王小二',
@@ -992,7 +992,7 @@ let liveMatches = [
             document.getElementById('setup-modal').classList.add('hidden');
             currentSetupSlotIdx = null;
         }
-        function confirmSetupMatch() {
+         function confirmSetupMatch() {
             const idx = currentSetupSlotIdx;
             const playerA = document.getElementById('setup-player-A').value;
             const playerB = document.getElementById('setup-player-B').value;
@@ -1003,7 +1003,7 @@ let liveMatches = [
             }
 
             liveMatches[idx] = {
-                id: Date.now(),
+                id: idx + 1, // 【关键修复】固定为 1 和 2，放弃 Date.now()
                 stage: document.getElementById('setup-stage').value,
                 group: document.getElementById('setup-group').value,
                 playerA: playerA,
@@ -1017,11 +1017,15 @@ let liveMatches = [
                 secondsElapsed: 0,
                 timerInterval: null
             };
+            
+            // 开赛时，云端分数同步清零
+            window.supabase.from('match_state').update({ score_a: 0, score_b: 0 }).eq('id', idx + 1).then();
 
             closeSetupModal();
             startAllLiveTimers();
             renderLiveCards();
         }
+
 
         // ==========================================
         // 全屏双层世界：执裁 vs 观看
@@ -1104,23 +1108,24 @@ let liveMatches = [
             syncFsScoreUI();
         }
 
-       function adjustMatchScore(player, delta) {
-    const m = liveMatches[activeSlotIndex];
-    if (!m) return;
+        function adjustMatchScore(player, delta) {
+            const m = liveMatches[activeSlotIndex];
+            if (!m) return;
 
-    if (player === 'A') {
-        m.scoreA = Math.max(0, (m.scoreA || 0) + delta);
-    } else {
-        m.scoreB = Math.max(0, (m.scoreB || 0) + delta);
-    }
+            if (player === 'A') {
+                m.scoreA = Math.max(0, (m.scoreA || 0) + delta);
+            } else {
+                m.scoreB = Math.max(0, (m.scoreB || 0) + delta);
+            }
 
-    supabase.from('match_state')
-        .update({ score_a: m.scoreA, score_b: m.scoreB })
-        .eq('id', m.id)
-        .then(() => {
-            syncFsScoreUI();
-        });
-}
+            // 【关键修复】确保调用 window.supabase 且列名下划线正确
+            window.supabase.from('match_state')
+                .update({ score_a: m.scoreA, score_b: m.scoreB })
+                .eq('id', m.id)
+                .then(() => {
+                    syncFsScoreUI();
+                });
+        }
         function adjustFsFooterButtons() {
             if(activeSlotIndex === null) return;
             const m = liveMatches[activeSlotIndex];
@@ -1265,7 +1270,7 @@ let liveMatches = [
 
         function resetLiveCardSlot(slotIdx) {
             liveMatches[slotIdx] = {
-                id: Date.now(),
+                id: slotIdx + 1, // 【关键修复】固定为 1 和 2
                 stage: '预赛',
                 group: liveMatches[slotIdx].group,
                 playerA: '选手A',
@@ -1279,6 +1284,7 @@ let liveMatches = [
                 secondsElapsed: 0,
                 timerInterval: null
             };
+            window.supabase.from('match_state').update({ score_a: 0, score_b: 0 }).eq('id', slotIdx + 1).then();
             startAllLiveTimers();
             renderLiveCards();
         }
@@ -1404,12 +1410,21 @@ let liveMatches = [
         }
 // --- Supabase 实时联动安全接入 ---
 
-// 1. 启动时从云端同步一次
+// 1. 启动时从云端同步一次(安全智能合并版)
 async function syncMatchesFromCloud() {
     const { data, error } = await window.supabase.from('match_state').select('*');
     if (data && data.length > 0) {
-        liveMatches = data;
-        renderLiveCards(); // 立即刷新大屏画面
+        data.forEach(dbRow => {
+            // 根据 ID 找到对应的本地槽位
+            let localMatch = liveMatches.find(m => m.id === dbRow.id);
+            if (localMatch) {
+                // 只更新分数，绝不覆盖其他本地配置
+                localMatch.scoreA = dbRow.score_a;
+                localMatch.scoreB = dbRow.score_b;
+            }
+        });
+        renderLiveCards(); // 刷新小卡片
+        if (typeof syncFsScoreUI === 'function') syncFsScoreUI(); // 刷新全屏大卡片
     }
 }
 
